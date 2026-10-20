@@ -1,0 +1,122 @@
+name: Project status sync
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    types: [closed]
+
+env:
+  # ---- CONFIGURE THESE ----
+  PROJECT_OWNER: Gugau21
+  OWNER_TYPE: user        # "organization" or "user"
+  PROJECT_NUMBER: "2"             # number in the project URL
+  STATUS_FIELD: Status
+  DEVELOPED: Developed
+  DONE: Done
+  # PAT (classic: "project" + "repo" scopes) or fine-grained token with
+  # Projects read/write. GITHUB_TOKEN cannot write to Projects v2.
+  GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update project status
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMITS: ${{ toJSON(github.event.commits.*.message) }}
+          PR_NODE_ID: ${{ github.event.pull_request.node_id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # ---------- project metadata ----------
+          META=$(gh api graphql -f query='
+            query($o:String!,$n:Int!,$s:String!){
+              '"$OWNER_TYPE"'(login:$o){
+                projectV2(number:$n){
+                  id
+                  field(name:$s){ ... on ProjectV2SingleSelectField { id options { id name } } }
+                }
+              }
+            }' -f o="$PROJECT_OWNER" -F n="$PROJECT_NUMBER" -f s="$STATUS_FIELD")
+
+          PROJECT_ID=$(jq -r '.data[].projectV2.id' <<<"$META")
+          FIELD_ID=$(jq -r '.data[].projectV2.field.id' <<<"$META")
+          opt() { jq -r --arg n "$1" '.data[].projectV2.field.options[] | select(.name==$n) | .id' <<<"$META"; }
+          DEVELOPED_ID=$(opt "$DEVELOPED")
+          DONE_ID=$(opt "$DONE")
+
+          # ---------- helpers ----------
+          add_item() {  # idempotent: returns existing item id if already in project
+            gh api graphql -f query='
+              mutation($p:ID!,$c:ID!){
+                addProjectV2ItemById(input:{projectId:$p,contentId:$c}){ item { id } }
+              }' -f p="$PROJECT_ID" -f c="$1" --jq '.data.addProjectV2ItemById.item.id'
+          }
+
+          current_status() {
+            gh api graphql -f query='
+              query($i:ID!,$s:String!){
+                node(id:$i){ ... on ProjectV2Item {
+                  fieldValueByName(name:$s){ ... on ProjectV2ItemFieldSingleSelectValue { name } }
+                } }
+              }' -f i="$1" -f s="$STATUS_FIELD" --jq '.data.node.fieldValueByName.name // ""'
+          }
+
+          set_status() {  # item id, option id
+            gh api graphql -f query='
+              mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){
+                updateProjectV2ItemFieldValue(input:{
+                  projectId:$p, itemId:$i, fieldId:$f,
+                  value:{ singleSelectOptionId:$o }
+                }){ projectV2Item { id } }
+              }' -f p="$PROJECT_ID" -f i="$1" -f f="$FIELD_ID" -f o="$2" >/dev/null
+          }
+
+          mark_developed() {  # content node id
+            local item cur
+            item=$(add_item "$1"); cur=$(current_status "$item")
+            if [ "$cur" != "$DONE" ] && [ "$cur" != "$DEVELOPED" ]; then
+              set_status "$item" "$DEVELOPED_ID"
+            fi
+          }
+
+          done_tree() {  # issue node id: Developed -> Done, then recurse into sub-issues
+            local id=$1 item cur sub
+            item=$(add_item "$id"); cur=$(current_status "$item")
+            if [ "$cur" = "$DEVELOPED" ]; then set_status "$item" "$DONE_ID"; fi
+            for sub in $(gh api graphql -f query='
+                query($i:ID!){ node(id:$i){ ... on Issue { subIssues(first:50){ nodes { id } } } } }' \
+                -f i="$id" --jq '.data.node.subIssues.nodes[]?.id'); do
+              done_tree "$sub"
+            done
+          }
+
+          # ---------- push (non-main): "closes #N" -> Developed ----------
+          if [ "$EVENT_NAME" = "push" ]; then
+            NUMBERS=$({ jq -r '.[]' <<<"$COMMITS" \
+              | grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?):? +#[0-9]+' \
+              | grep -oE '[0-9]+' | sort -u; } || true)
+            for n in $NUMBERS; do
+              echo "Issue #$n -> $DEVELOPED"
+              node=$(gh api "repos/$REPO/issues/$n" --jq .node_id)
+              mark_developed "$node"
+            done
+          fi
+
+          # ---------- PR closed: PR -> Done, linked Developed issues -> Done ----------
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_MERGED" = "true" ]; then
+            echo "PR #$PR_NUMBER -> $DONE"
+            set_status "$(add_item "$PR_NODE_ID")" "$DONE_ID"
+
+            for id in $(gh api graphql -f query='
+                query($i:ID!){ node(id:$i){ ... on PullRequest {
+                  closingIssuesReferences(first:50){ nodes { id } } } } }' \
+                -f i="$PR_NODE_ID" --jq '.data.node.closingIssuesReferences.nodes[].id'); do
+              done_tree "$id"
+            done
+          fi
