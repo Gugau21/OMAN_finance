@@ -1,0 +1,4 @@
+.dockerignore
+Dockerfile.prod
+nginx.dev.conf
+nginx.prod.conf
