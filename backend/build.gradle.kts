@@ -1,7 +1,9 @@
 plugins {
     java
+    checkstyle
     id("org.springframework.boot") version "3.5.6"
     id("io.spring.dependency-management") version "1.1.7"
+    id("com.diffplug.spotless") version "7.0.2"
 }
 
 group = "com.omanfinance"
@@ -28,6 +30,29 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+spotless {
+    java {
+        googleJavaFormat()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+
+    kotlinGradle {
+        ktlint()
+    }
+}
+
+checkstyle {
+    toolVersion = "10.21.2"
+    configFile = file("config/checkstyle/checkstyle.xml")
+    isIgnoreFailures = false
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.named("check") {
+    dependsOn("spotlessCheck")
 }
