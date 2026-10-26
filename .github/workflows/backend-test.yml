@@ -16,6 +16,7 @@ defaults:
 
 jobs:
   test:
+    name: Backend Tests
     runs-on: ubuntu-latest
     services:
       postgres:

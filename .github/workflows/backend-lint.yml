@@ -16,6 +16,7 @@ defaults:
 
 jobs:
   lint-and-style:
+    name: Backend Lint and Style
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository

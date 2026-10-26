@@ -16,6 +16,7 @@ defaults:
 
 jobs:
   test:
+    name: Frontend Tests
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
