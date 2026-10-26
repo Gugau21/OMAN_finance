@@ -1,0 +1,34 @@
+name: Backend lint and style
+
+on:
+  push:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-lint.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-lint.yml"
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  lint-and-style:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Run Spotless and Checkstyle
+        run: ./gradlew spotlessCheck checkstyleMain checkstyleTest
