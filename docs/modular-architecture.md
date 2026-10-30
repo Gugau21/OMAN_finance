@@ -116,8 +116,9 @@ MarketIngestion (tracked symbols, market status).
 
 ## 3. Component Overview
 
-Arrows in this view show the direction data flows. The red path is a live
-bar from Alpaca becoming a candle and reaching the browser.
+Solid arrows in this view show the direction data flows. Dashed arrows labeled
+"calls" point from the caller to the component it calls. The red path is a
+live bar from Alpaca becoming a candle and reaching the browser.
 
 Hexagons are the public interfaces between modules. All other components
 are package-private to their module, except the `BarsRequest` and `Candle`
@@ -139,7 +140,7 @@ records, which the interfaces use.
     "edgeLabelBackground": "transparent"
   },
   "themeCSS": ".labelBkg, .edgeLabel, .edgeLabel p, .edgeLabel rect { background-color: transparent !important; fill: transparent !important; }",
-  "flowchart": { "curve": "basis", "nodeSpacing": 45, "rankSpacing": 70, "padding": 18, "htmlLabels": true }
+  "flowchart": { "curve": "basis", "nodeSpacing": 70, "rankSpacing": 95, "padding": 18, "htmlLabels": true }
 }}%%
 flowchart TB
     subgraph ext[" "]
@@ -153,7 +154,7 @@ flowchart TB
         barsClient["<b>AlpacaBarsClient</b><br/><small>GET /v2/stocks/bars<br/>returns cached raw bars if Redis has the range,<br/>else passes the request through, adds feed=iex,<br/>saves and returns the raw response</small>"]
         barRepo["<b>BarRedisRepository</b><br/><small>raw Alpaca bars</small>"]
         stockRepo["<b>StockRepository</b><br/><small>SELECT / INSERT / DELETE on Stock<br/>keeps the symbol list in memory</small>"]
-        ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): Stream#lt;Bar#gt;<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>getTrackedSymbols()<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
+        ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): stream of Bars<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>getTrackedSymbols()<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
         clock["<b>MarketClock</b><br/><small>polls /v2/clock at next open / close<br/>holds the last response in memory</small>"]
         barHub["<b>LiveBarStream</b><br/><small>emits each Bar to every subscriber<br/>no saving</small>"]
         barsRequest["<i>«record»</i><br/><b>BarsRequest</b><br/><small>query of GET /v2/stocks/bars · free plan</small><small><table style='white-space:nowrap'><tr><td align='left'><b>symbols</b></td><td align='left'>AAPL,MSFT</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>timeframe</b></td><td align='left'>1Min</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>start</b></td><td align='left'>RFC-3339</td><td align='left'><i>start of day</i></td></tr><tr><td align='left'><b>end</b></td><td align='left'>RFC-3339</td><td align='left'><i>now</i></td></tr><tr><td align='left'><b>limit</b></td><td align='left'>1 – 10000</td><td align='left'><i>1000</i></td></tr><tr><td align='left'><b>sort</b></td><td align='left'>asc | desc</td><td align='left'><i>asc</i></td></tr><tr><td align='left'><b>adjustment</b></td><td align='left'>raw | split | dividend | spin-off | all</td><td align='left'><i>raw</i></td></tr><tr><td align='left'><b>asof</b></td><td align='left'>YYYY-MM-DD</td><td align='left'><i>today</i></td></tr><tr><td align='left'><b>currency</b></td><td align='left'>ISO 4217</td><td align='left'><i>USD</i></td></tr><tr><td align='left'><b>page_token</b></td><td align='left'>next_page_token</td><td align='left'><i>—</i></td></tr></table></small>"]
@@ -161,35 +162,52 @@ flowchart TB
     end
 
     subgraph buffer["<b>candlebuffer</b>"]
-        direction LR
-        recorder["<b>CandleRecorder</b><br/><small>consumes streamBars()<br/>Candle.from(symbol, bar)</small>"]
-        candleRecord["<i>«record»</i><br/><b>Candle</b><br/><small>symbol, openTime, open, high, low, close, volume<br/>static from(symbol, Bar): Candle</small>"]
-        detector["<b>CandleGapDetector</b><br/><small>on startup, on each live candle, before each read:<br/>which trading minutes are missing?</small>"]
-        backfiller["<b>CandleBackfiller</b><br/><small>builds BarsRequest for a<br/>missing range (start, end, limit, sort)<br/>Candle.from(symbol, bar)</small>"]
-        candleRepo["<b>CandleRedisRepository</b><br/><small>ZADD, ZREMRANGEBYRANK, ZRANGE</small>"]
-        bufferApi{{"<i>«interface»</i><br/><b>CandleBuffer</b><br/><small>streamCandles(): Stream#lt;Candle#gt;<br/>getLastCandles(symbol, n)</small>"}}
-        candleHub["<b>LiveCandleStream</b><br/><small>1. save Candle to Redis<br/>2. emit to every subscriber</small>"]
+        direction TB
+        subgraph bufferGap[" "]
+            direction LR
+            detector["<b>CandleGapDetector</b><br/><small>reads stored candles, returns the gap or none:<br/>before a given candle<br/>or in the last n trading minutes</small>"]
+            backfiller["<b>CandleBackfiller</b><br/><small>builds BarsRequest for a<br/>missing range (start, end, limit, sort)<br/>Candle.from(symbol, bar)<br/>saves and returns the candles</small>"]
+            candleRepo["<b>CandleRedisRepository</b><br/><small>ZADD, ZREMRANGEBYRANK, ZRANGE</small>"]
+        end
+        subgraph bufferEntry[" "]
+            direction LR
+            candleHub["<b>LiveCandleStream</b><br/><small>consumes streamBars()<br/>Candle.from(symbol, bar)<br/>1. save candle<br/>2. gap: backfill<br/>3. emit backfilled candles, then the current one</small>"]
+            history["<b>CandleHistory</b><br/><small>serves getLastCandles(symbol, n)<br/>gap: backfill<br/>no gap: read from Redis</small>"]
+        end
+        subgraph bufferIface[" "]
+            direction LR
+            bufferApi{{"<i>«interface»</i><br/><b>CandleBuffer</b><br/><small>streamCandles(): stream of Candles<br/>getLastCandles(symbol, n)</small>"}}
+            candleRecord["<i>«record»</i><br/><b>Candle</b><br/><small>symbol, openTime, open, high, low, close, volume<br/>static from(symbol, Bar): Candle</small>"]
+        end
     end
 
     subgraph feed["<b>clientfeed</b>"]
         direction LR
-        wsConfig["<b>WebSocketConfig</b><br/><small>STOMP endpoint /ws</small>"]
         rest["<b>REST controllers</b><br/><small>GET /api/stocks<br/>GET /api/candles/{symbol}<br/>GET /api/market/status</small>"]
-        broadcaster["<b>CandleBroadcaster</b><br/><small>consumes streamCandles()</small>"]
+        subgraph feedLive[" "]
+            direction TB
+            broadcaster["<b>CandleBroadcaster</b><br/><small>consumes streamCandles()</small>"]
+            wsConfig["<b>WebSocketConfig</b><br/><small>STOMP endpoint /ws</small>"]
+        end
     end
 
     redisBars[("<b>Redis</b><br/><small>bars:{symbol}</small>")]
+    redisCandles[("<b>Redis</b><br/><small>candles:{symbol}</small>")]
     browser["<b>Browser</b>"]
 
-    redisCandles[("<b>Redis</b><br/><small>candles:{symbol}</small>")]
-
-    %% Edge order and the long getBars arrow are tuned for the layout: reordering adds crossings.
-    candleRecord ~~~ bufferApi
+    %% Edge order is tuned for the layout: reordering adds crossings. In
+    %% particular the two skip-level CandleRedisRepository edges below
+    %% (save candle / read last n) must stay right after detector's edge, so
+    %% dagre routes them between CandleGapDetector and CandleBackfiller
+    %% instead of looping around the outside of the candlebuffer box.
+    %% "bufferApi <--> X" with marker-end:none draws X -> bufferApi but keeps the interface above X.
+    candleRecord ~~~ candleRepo
     barsClient <-->|"save raw bars<br/>cached raw bars"| barRepo
-    bufferApi ~~~ redisCandles
-    candleRepo -->|"stored candles"| detector
-    candleHub -->|"Stream#lt;Candle#gt;"| bufferApi
-    detector -->|"missing ranges"| backfiller
+    detector -.->|"calls<br/>read stored candles"| candleRepo
+    candleHub -.->|"calls<br/>save candle"| candleRepo
+    history -.->|"calls<br/>read last n"| candleRepo
+    bufferApi <-->|"stream of Candles"| candleHub
+    candleHub -.->|"calls<br/>backfill gap<br/>returns candles"| backfiller
     barsClient -->|"bars response"| ingestionApi
     alpaca -->|"REST /v2/stocks/bars"| barsClient
     alpaca -->|"WS bars"| streamClient
@@ -197,27 +215,31 @@ flowchart TB
     bufferApi -->|"streamCandles()"| broadcaster
     alpaca -->|"REST /v2/clock"| clock
     rest <-->|"REST /api/*"| browser
-    recorder -->|"Candle"| detector
+    candleHub -.->|"calls<br/>gap before this candle?"| detector
     ingestionApi -->|"getMarketStatus()<br/>getTrackedSymbols()"| rest
     ingestionApi -->|"getTrackedSymbols()<br/>getMarketStatus()"| detector
-    candleRepo <-->|"save: ZADD + trim to 60<br/>read: ZRANGE"| redisCandles
+    candleRepo -.->|"calls<br/>save: ZADD + trim to 60<br/>read: ZRANGE"| redisCandles
     clock -->|"clock response"| ingestionApi
     stockRepo -->|"subscribe / unsubscribe"| streamClient
     barsRequest -.- barsClient
     ingestionApi ----->|"getBars(request)"| backfiller
-    candleHub -->|"save candle"| candleRepo
-    candleRepo -->|"last n candles"| bufferApi
-    backfiller -->|"save candles"| candleRepo
-    ingestionApi -->|"streamBars()"| recorder
-    barHub -->|"Stream#lt;Bar#gt;"| ingestionApi
+    bufferApi <-->|"last n candles"| history
+    backfiller -.->|"calls<br/>save candles"| candleRepo
+    ingestionApi -->|"streamBars()"| candleHub
+    barHub -->|"stream of Bars"| ingestionApi
     broadcaster -->|"/topic/candles/{symbol}"| wsConfig
     wsConfig -->|"STOMP /ws"| browser
     streamClient -->|"Bar"| barHub
     barRepo <-->|"save: ZADD + trim<br/>read: ZRANGE"| redisBars
     bufferApi -->|"getLastCandles(symbol, 60)"| rest
-    recorder -->|"Candle"| candleHub
+    history -.->|"calls<br/>gap in last n?"| detector
     stockRepo <-->|"read symbols<br/>add / remove symbol"| ingestionApi
-    linkStyle 4,8,10,24,25,26,27,28,31 stroke:#ef4444,stroke-width:2px
+    history -.->|"calls<br/>backfill gap<br/>returns candles"| backfiller
+    %% linkStyle indices count the edges above in order (0-based): keep them
+    %% in sync when adding/removing/reordering edges. Red = live-bar path.
+    linkStyle 9,11,24,25,26,27,28 stroke:#ef4444,stroke-width:2px
+    linkStyle 5 stroke:#ef4444,stroke-width:2px,marker-end:none
+    linkStyle 22 marker-end:none
     classDef external   fill:#161616,stroke:#d4d4d4,stroke-width:2px,color:#f5f5f5
     classDef datastore  fill:#3f3f3f,stroke:#d4d4d4,stroke-width:1.5px,color:#f5f5f5
     classDef component  fill:#262626,stroke:#737373,stroke-width:1px,color:#e5e5e5
@@ -225,13 +247,17 @@ flowchart TB
 
     class alpaca,browser external
     class pg,redisBars,redisCandles datastore
-    class stockRepo,streamClient,barHub,barRepo,barsClient,clock,recorder,detector,backfiller,candleHub,candleRecord,candleRepo,rest,broadcaster,wsConfig,barsRequest component
+    class stockRepo,streamClient,barHub,barRepo,barsClient,clock,history,detector,backfiller,candleHub,candleRecord,candleRepo,rest,broadcaster,wsConfig,barsRequest component
     class ingestionApi,bufferApi iface
 
     style ext fill:none,stroke:none
     style ingestion fill:#161616,stroke:#525252,stroke-width:1px,color:#e5e5e5
     style buffer    fill:#161616,stroke:#525252,stroke-width:1px,color:#e5e5e5
     style feed      fill:#161616,stroke:#525252,stroke-width:1px,color:#e5e5e5
+    style bufferGap fill:none,stroke:none
+    style bufferEntry fill:none,stroke:none
+    style bufferIface fill:none,stroke:none
+    style feedLive fill:none,stroke:none
 ```
 
 
@@ -242,7 +268,7 @@ flowchart TB
     (`t, o, h, l, c, v, n, vw`).
   - **Candle:** A `Candle` is our backend object (symbol, open time, open,
     high, low, close, volume). The only place that turns a bar into a candle
-    is the static factory method `Candle.from(symbol, bar)`; `CandleRecorder`
+    is the static factory method `Candle.from(symbol, bar)`; `LiveCandleStream`
     and `CandleBackfiller` both call it. The symbol is passed separately
     because a raw bar does not carry it.
 
@@ -272,7 +298,7 @@ flowchart TB
   stored candles with the trading minutes (from `getMarketStatus()`) and
   hands every missing range to `CandleBackfiller`. It runs:
   - at startup, for every symbol from `getTrackedSymbols()`;
-  - on each live candle from `CandleRecorder` (a new candle more than one
+  - on each live candle from `LiveCandleStream` (a new candle more than one
     trading minute after the last stored one);
   - before each `getLastCandles(symbol, n)` read (fewer than n candles, or a
     missing minute between them). The read waits for the backfill and then
