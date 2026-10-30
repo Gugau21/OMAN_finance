@@ -1,6 +1,6 @@
 # OMAN Finance backend module diagram
 
-## 1. Module view
+## 1. Module Overview
 
 Arrows show the direction data flows.
 
@@ -30,11 +30,94 @@ flowchart LR
     feed <-->|"REST /api/*<br/>STOMP /ws"| browser
 ```
 
-## 2. Component view
+## 2. Module Descriptions
+
+### MarketIngestion
+
+**Purpose:** The backend's only connection to Alpaca. It brings market data
+and market status into the system unchanged and makes them available to the
+other modules.
+
+**Responsibilities:**
+
+- Keep one WebSocket connection to Alpaca open: authenticate, subscribe to
+  the tracked symbols and reconnect when the connection drops.
+- Turn incoming WebSocket messages into bars without changing their values
+  and hand every live bar to each module that listens.
+- Fetch historical minute bars from Alpaca's REST API on request and save the 
+  raw response in Redis and return it unchanged.
+- Track whether the market is open/closed.
+- Keep the list of tracked symbols: load it from PostgreSQL at startup, hold
+  it in memory and add or remove symbols at runtime, updating the WebSocket
+  subscription without reconnecting.
+- Contain no business logic: whatever Alpaca returns is passed on as is.
+
+**Owns:**
+
+- the Alpaca WebSocket connection and API credentials;
+- raw bars in Redis (`bars:{symbol}`);
+- the `Stock` table in PostgreSQL and the in-memory symbol list.
+- the in-memory market status.
+
+**Dependencies:** none.
+
+### CandleBuffer
+
+**Purpose:** Turns raw bars into candles and keeps the last 60 trading
+minutes of candles per symbol complete and ready to serve.
+
+**Responsibilities:**
+
+- Listen to live bars, convert each bar into a candle, save it and only then
+  pass it on, so every candle a client receives is already stored.
+- Keep only the latest 60 candles per symbol in Redis.
+- Detect gaps in the live data while the market is open; nights and weekends
+  do not count as gaps.
+- Backfill missing candles from historical bars at startup for every tracked
+  symbol, when a gap is detected and when a read finds fewer than 60 candles
+  or a missing minute. The module decides which time range to request.
+- Serve the last 60 candles of a symbol, waiting for a backfill if needed,
+  so the result is always complete.
+- Key candles by timestamp so refetched data overwrites instead of
+  duplicating.
+
+**Owns:**
+
+- candles in Redis (`candles:{symbol}`);
+- the `Candle` model;
+- the rules for what counts as a gap and how missing data is filled.
+
+**Dependencies:** MarketIngestion (live bars, historical bars, tracked
+symbols, market status).
+
+### ClientFeed
+
+**Purpose:** The backend's interface to the browser. It serves snapshots
+over REST and pushes live candles over WebSocket.
+
+**Responsibilities:**
+
+- Serve REST endpoints and host the STOMP-over-WebSocket endpoint 
+  that browsers connect to.
+- Listen to live candles and publish each one to the topic of its symbol.
+- Convert internal models into the response format the frontend expects.
+- Contain no market data logic and never access Alpaca or Redis directly.
+
+**Owns:**
+
+- the REST API (`/api/*`);
+- the STOMP endpoint (`/ws`) and its topics (`/topic/candles/{symbol}`);
+
+**Dependencies:** CandleBuffer (live candles, last 60 candles),
+MarketIngestion (tracked symbols, market status).
+
+## 3. Component Overview
 
 Arrows in this view show the direction data flows. The red path is a live
-bar from Alpaca becoming a candle and reaching the browser. Dashed hexagons are
-the public interfaces of each module.
+bar from Alpaca becoming a candle and reaching the browser.
+
+Hexagons are the public interfaces between modules. All other components
+are package-private to their module.
 
 ```mermaid
 %%{init: {
@@ -70,14 +153,14 @@ flowchart TB
         barsRequest["<i>«record»</i><br/><b>BarsRequest</b><br/><small>query of GET /v2/stocks/bars · free plan</small><small><table style='white-space:nowrap'><tr><td align='left'><b>symbols</b></td><td align='left'>AAPL,MSFT</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>timeframe</b></td><td align='left'>1Min</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>start</b></td><td align='left'>RFC-3339</td><td align='left'><i>start of day</i></td></tr><tr><td align='left'><b>end</b></td><td align='left'>RFC-3339</td><td align='left'><i>now</i></td></tr><tr><td align='left'><b>limit</b></td><td align='left'>1 – 10000</td><td align='left'><i>1000</i></td></tr><tr><td align='left'><b>sort</b></td><td align='left'>asc | desc</td><td align='left'><i>asc</i></td></tr><tr><td align='left'><b>adjustment</b></td><td align='left'>raw | split | dividend | spin-off | all</td><td align='left'><i>raw</i></td></tr><tr><td align='left'><b>asof</b></td><td align='left'>YYYY-MM-DD</td><td align='left'><i>today</i></td></tr><tr><td align='left'><b>currency</b></td><td align='left'>ISO 4217</td><td align='left'><i>USD</i></td></tr><tr><td align='left'><b>page_token</b></td><td align='left'>next_page_token</td><td align='left'><i>—</i></td></tr></table></small>"]
         barHub["<b>LiveBarStream</b><br/><small>emits each Bar to every subscriber<br/>no saving</small>"]
         streamClient["<b>AlpacaStreamClient</b><br/><small>WS connect, auth, subscribe,<br/>unsubscribe, reconnect<br/>JSON → Bar, no changes</small>"]
-        ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): Stream#lt;Bar#gt;<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>getTrackedSymbols()<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
+        ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): stream of Bars<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>getTrackedSymbols()<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
         clock["<b>MarketClock</b><br/><small>polls /v2/clock at next open / close<br/>holds the last response in memory</small>"]
     end
 
 
     subgraph buffer["<b>candlebuffer</b>"]
         direction LR
-        bufferApi{{"<i>«interface»</i><br/><b>CandleBuffer</b><br/><small>streamCandles(): Stream#lt;Candle#gt;<br/>getLastCandles(symbol, n)</small>"}}
+        bufferApi{{"<i>«interface»</i><br/><b>CandleBuffer</b><br/><small>streamCandles(): stream of Candles<br/>getLastCandles(symbol, n)</small>"}}
         backfiller["<b>CandleBackfiller</b><br/><small>on startup and on gap:<br/>builds BarsRequest for the<br/>missing range (start, end, limit, sort)<br/>Bar → Candle</small>"]
         candleRepo["<b>CandleRedisRepository</b><br/><small>ZADD, ZREMRANGEBYRANK, ZRANGE<br/>on read: are all last 60 candles there?</small>"]
         recorder["<b>CandleRecorder</b><br/><small>consumes streamBars()<br/>Bar → Candle, detects gaps</small>"]
@@ -107,7 +190,7 @@ flowchart TB
     streamClient -->|"Bar"| barHub
     bufferApi ~~~ redisCandles
     alpaca -->|"WS bars"| streamClient
-    candleHub -->|"Stream#lt;Candle#gt;"| bufferApi
+    candleHub -->|"stream of Candles"| bufferApi
     barsClient -->|"bars response"| ingestionApi
     alpaca -->|"REST /v2/stocks/bars"| barsClient
     recorder -->|"gap detected"| backfiller
@@ -120,7 +203,7 @@ flowchart TB
     pg --> stockRepo
     ingestionApi -->|"getBars(request)<br/>getTrackedSymbols()"| backfiller
     rest <-->|"REST /api/*"| browser
-    barHub -->|"Stream#lt;Bar#gt;"| ingestionApi
+    barHub -->|"stream of Bars"| ingestionApi
     candleRepo -->|"last n candles"| bufferApi
     stockRepo <-->|"read symbols<br/>add / remove symbol"| ingestionApi
     redisCandles -->|"read: ZRANGE"| candleRepo
@@ -154,33 +237,34 @@ flowchart TB
 ```
 
 
-## 3. Reading the diagrams
+## 4. Notes regarding components
 
-- Hexagons are the public interfaces between modules. All other components
-  are package-private to their module.
-- **Bar vs. candle.** A `Bar` is the raw minute bar exactly as Alpaca sends
-  it (`t, o, h, l, c, v, n, vw`). A `Candle` is our backend object, built from
-  a bar in `CandleBuffer` (e.g. symbol, open time, open, high, low, close,
-  volume). Both are saved in Redis under different keys, so the same minute
-  can exist twice in two shapes:
+- **Bar vs. candle.**
+  - **Bar:** A `Bar` is the raw minute bar exactly as Alpaca sends it
+    (`t, o, h, l, c, v, n, vw`).
+  - **Candle:** A `Candle` is our backend object, built from a bar in
+    `CandleBuffer` (e.g. symbol, open time, open, high, low, close, volume).
+
+  Both are saved in Redis under different keys, so the same minute can exist
+  twice in two shapes:
   - `bars:{symbol}`: raw bars from `/v2/stocks/bars` responses, saved by
     `AlpacaBarsClient`, owned by `MarketIngestion`. Live bars from the
     WebSocket are not saved raw;
   - `candles:{symbol}`: candles, owned by `CandleBuffer`, last 60 per symbol.
-- **Live data is a Java stream, not an event.** `streamBars()` and
-  `streamCandles()` each return a new `Stream` per caller. The caller consumes
-  it on its own thread for as long as the application runs. `LiveBarStream`
-  only hands each bar to every open stream. `LiveCandleStream` saves each
-  candle first and then hands it on, so any candle a client receives is
-  already in Redis.
-- **`MarketIngestion` has no business logic.** Its public functions return
-  what Alpaca returns:
-  - `getBars(BarsRequest)` passes the request to `GET /v2/stocks/bars`,
-    saves the raw bars to `bars:{symbol}` and returns the raw response (bars
-    and `next_page_token`);
-  - `getMarketStatus()` returns the last `/v2/clock` response
-    (`timestamp, is_open, next_open, next_close`);
-  - `streamBars()` emits bars as they arrive on the WebSocket.
+- `MarketClock` keeps the market status in memory, not in Redis. It calls
+  Alpaca `/v2/clock` at startup, again at the next open or close, and on a
+  periodic safety-net refresh.
+- `StockRepository` loads the symbols from PostgreSQL at startup and keeps
+  the list in memory. `AlpacaStreamClient` subscribes to them; other modules
+  read them through `getTrackedSymbols()`.
+- `addSymbol(symbol)` and `removeSymbol(symbol)` change the tracked symbols at
+  runtime:
+  - `addSymbol` inserts the row into `Stock`, updates the in-memory list and
+    sends a `subscribe` message on the open Alpaca WebSocket;
+  - `removeSymbol` deletes the row, updates the list and sends `unsubscribe`.
+  Alpaca accepts both messages on a live connection, so no reconnect is
+  needed. Adding a symbol that is already tracked, or removing one that is
+  not, does nothing.
 - **`CandleBuffer` decides what data it needs.** `CandleBackfiller` builds the
   `BarsRequest` itself: symbol, `timeframe=1Min` and only the missing range
   (`start`, `end`, `limit`, `sort`). `AlpacaBarsClient` adds `feed=iex`
@@ -199,27 +283,10 @@ flowchart TB
   session, and nights and weekends do not count as gaps. Candles are keyed by
   timestamp, so refetched candles overwrite existing ones instead of
   duplicating them.
-- Dependencies point one way: `ClientFeed` depends on `CandleBuffer` and
-  `MarketIngestion`; `CandleBuffer` depends on `MarketIngestion`;
-  `MarketIngestion` depends on no other module.
-- `StockRepository` loads the symbols from PostgreSQL at startup and keeps
-  the list in memory. `AlpacaStreamClient` subscribes to them; other modules
-  read them through `getTrackedSymbols()`.
-- `addSymbol(symbol)` and `removeSymbol(symbol)` change the tracked symbols at
-  runtime:
-  - `addSymbol` inserts the row into `Stock`, updates the in-memory list and
-    sends a `subscribe` message on the open Alpaca WebSocket;
-  - `removeSymbol` deletes the row, updates the list and sends `unsubscribe`.
-  Alpaca accepts both messages on a live connection, so no reconnect is
-  needed. Adding a symbol that is already tracked, or removing one that is
-  not, does nothing.
-- **Planned for the next iteration:** `StockRepository`, `addSymbol` and
-  `removeSymbol` will move out of `MarketIngestion` into a separate module
-  that owns the `Stock` table. `MarketIngestion` will then only read the
-  tracked symbols and subscribe or unsubscribe on the Alpaca WebSocket.
-- `MarketClock` keeps the market status in memory, not in Redis. It calls
-  Alpaca `/v2/clock` at startup, again at the next open or close, and on a
-  periodic safety-net refresh.
-- Market status is currently pull-only through REST. Pushing status changes on
-  `/topic/market-status` is a possible extension.
-- REST endpoint names are provisional.
+
+## 5. Notes for next iteration
+
+- `StockRepository`, `addSymbol` and `removeSymbol` will move out of
+  `MarketIngestion` into a separate module that owns the `Stock` table.
+  `MarketIngestion` will then only read the tracked symbols and subscribe or
+  unsubscribe on the Alpaca WebSocket.
