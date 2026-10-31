@@ -316,6 +316,16 @@ flowchart TB
   converts the bars with `Candle.from` and saves them. `CandleRedisRepository`
   only stores and reads candles. Candles are keyed by timestamp, so refetched
   candles overwrite existing ones instead of duplicating them.
+- **This iteration implements only the happy path.** We assume the Alpaca
+  WebSocket never fails, so no gaps appear in the live data. Until that
+  changes:
+  - `CandleGapDetector` is not built;
+  - `LiveCandleStream` saves each candle directly to Redis;
+  - `CandleBackfiller` runs only at server startup, to fill the first 60
+    candles per symbol;
+  - `CandleHistory` only reads the last candles from Redis.
+
+  The diagram still shows gap detection, so it is ready if we add it later.
 
 ## 5. Notes for next iteration
 
