@@ -1,0 +1,249 @@
+asyncapi: 3.1.0
+info:
+  title: OMAN Finance STOMP API
+  version: 0.1.0
+  description: |
+    Live updates pushed from the backend to the frontend over STOMP, iteration 1.
+
+    The frontend loads the initial state through the REST API
+    (`api_contract.yaml`) and keeps it up to date with the topics below. The
+    payload schemas are shared with the REST API.
+
+    Connection:
+    - STOMP 1.2 over a plain WebSocket at `/ws` (no SockJS).
+    - There are no users in this iteration, so the `CONNECT` frame carries no
+      credentials.
+    - Heart-beats are `10000,10000`. Nginx closes a WebSocket after 10 minutes
+      without traffic, and the stock topics are silent while the market is
+      closed.
+
+    Delivery:
+    - The backend only sends. Clients only `SUBSCRIBE`; there are no `/app`
+      destinations to send to.
+    - Each stock gets one update per minute, when the candle for that minute
+      arrives from Alpaca. The candle is saved before it is published, so
+      REST and STOMP never disagree.
+    - Nothing is replayed. A message is not sent again to a client that was
+      disconnected or not yet subscribed, and subscribing does not send the
+      current value.
+    - Stock topics are silent while the market is closed.
+
+    Recommended client flow:
+    1. Connect and subscribe to the needed topics.
+    2. Fetch the REST snapshot.
+    3. Merge each message by `timestamp`: replace the point with the same
+       timestamp, append newer points and drop the oldest to keep 60. Ignore
+       messages older than the snapshot.
+    4. After a reconnect, subscribe again and fetch the REST snapshot again.
+
+    Conventions are the same as in the REST API: stocks are identified by
+    `symbol`, prices are in USD and timestamps are RFC 3339 date-times.
+
+defaultContentType: application/json
+
+servers:
+  nginx:
+    host: localhost
+    pathname: /ws
+    protocol: stomp
+    protocolVersion: "1.2"
+    description: STOMP over WebSocket through Nginx (dev and prod profiles), `ws://localhost/ws`.
+  backend:
+    host: localhost:8080
+    pathname: /ws
+    protocol: stomp
+    protocolVersion: "1.2"
+    description: STOMP over WebSocket to the backend container directly (dev only), `ws://localhost:8080/ws`.
+
+channels:
+  marketStatus:
+    address: /topic/market/status
+    title: Market status
+    description: |
+      Publishes the market status every time the backend gets a new
+      Alpaca `/v2/clock` response: at startup, when the market opens or
+      closes, and on the periodic safety-net refresh. The payload is the
+      same as `GET /api/market/status`.
+    messages:
+      marketStatus:
+        $ref: "#/components/messages/MarketStatus"
+
+  sparklines:
+    address: /topic/stocks/sparkline
+    title: Sparklines of all stocks
+    description: |
+      Publishes the newest price point of every tracked stock, one message
+      per stock per minute. The client appends it to that stock's sparkline
+      from `GET /api/stocks/sparkline`.
+    messages:
+      sparklinePoint:
+        $ref: "#/components/messages/SparklinePoint"
+
+  stats:
+    address: /topic/stocks/stat
+    title: Stats of all stocks
+    description: |
+      Publishes the latest price, 60-minute change and volume of every
+      tracked stock, one message per stock per minute. Each message replaces
+      that stock's entry from `GET /api/stocks/stat`.
+    messages:
+      stockStat:
+        $ref: "#/components/messages/StockStat"
+
+  stockStat:
+    address: /topic/stocks/{symbol}/stat
+    title: Stat of one stock
+    description: |
+      Same messages as `/topic/stocks/stat`, but only for one stock.
+    parameters:
+      symbol:
+        $ref: "#/components/parameters/symbol"
+    messages:
+      stockStat:
+        $ref: "#/components/messages/StockStat"
+
+  stockCandles:
+    address: /topic/stocks/{symbol}/candles
+    title: Candles of one stock
+    description: |
+      Publishes the newest one-minute candle of one stock, once per minute.
+      The client appends it to the candles from
+      `GET /api/stocks/{symbol}/candles`.
+    parameters:
+      symbol:
+        $ref: "#/components/parameters/symbol"
+    messages:
+      stockCandle:
+        $ref: "#/components/messages/StockCandle"
+
+operations:
+  publishMarketStatus:
+    action: send
+    summary: Publish a market status change
+    channel:
+      $ref: "#/channels/marketStatus"
+    messages:
+      - $ref: "#/channels/marketStatus/messages/marketStatus"
+
+  publishSparklinePoint:
+    action: send
+    summary: Publish the newest price point of a stock
+    channel:
+      $ref: "#/channels/sparklines"
+    messages:
+      - $ref: "#/channels/sparklines/messages/sparklinePoint"
+
+  publishStat:
+    action: send
+    summary: Publish the latest stat of a stock to all-stock subscribers
+    channel:
+      $ref: "#/channels/stats"
+    messages:
+      - $ref: "#/channels/stats/messages/stockStat"
+
+  publishStockStat:
+    action: send
+    summary: Publish the latest stat of a stock to its own topic
+    channel:
+      $ref: "#/channels/stockStat"
+    messages:
+      - $ref: "#/channels/stockStat/messages/stockStat"
+
+  publishStockCandle:
+    action: send
+    summary: Publish the newest candle of a stock
+    channel:
+      $ref: "#/channels/stockCandles"
+    messages:
+      - $ref: "#/channels/stockCandles/messages/stockCandle"
+
+components:
+  parameters:
+    symbol:
+      description: Symbol of a tracked stock, as returned by `GET /api/stocks`.
+      examples:
+        - AAPL
+
+  messages:
+    MarketStatus:
+      name: MarketStatus
+      title: Market status
+      payload:
+        schemaFormat: application/vnd.oai.openapi;version=3.0.0
+        schema:
+          $ref: "./api_contract.yaml#/components/schemas/MarketStatus"
+      examples:
+        - name: marketOpen
+          payload:
+            timestamp: "2026-10-29T09:30:00-04:00"
+            isOpen: true
+            nextOpen: "2026-10-30T09:30:00-04:00"
+            nextClose: "2026-10-29T16:00:00-04:00"
+
+    SparklinePoint:
+      name: SparklinePoint
+      title: Sparkline point
+      summary: Close price of the newest minute of one stock.
+      payload:
+        schemaFormat: application/vnd.oai.openapi;version=3.0.0
+        schema:
+          allOf:
+            - $ref: "#/components/schemas/SymbolField/schema"
+            - $ref: "./api_contract.yaml#/components/schemas/PricePoint"
+      examples:
+        - name: aapl
+          payload:
+            symbol: AAPL
+            timestamp: "2026-10-29T17:07:00Z"
+            price: 231.42
+
+    StockStat:
+      name: StockStat
+      title: Stock stat
+      summary: Latest price, 60-minute change and volume of one stock.
+      payload:
+        schemaFormat: application/vnd.oai.openapi;version=3.0.0
+        schema:
+          $ref: "./api_contract.yaml#/components/schemas/StockStat"
+      examples:
+        - name: aapl
+          payload:
+            symbol: AAPL
+            timestamp: "2026-10-29T17:07:00Z"
+            price: 231.42
+            change: 1.87
+            changePercent: 0.81
+            volume: 1843200
+
+    StockCandle:
+      name: StockCandle
+      title: Stock candle
+      summary: Newest one-minute candle of one stock.
+      payload:
+        schemaFormat: application/vnd.oai.openapi;version=3.0.0
+        schema:
+          allOf:
+            - $ref: "#/components/schemas/SymbolField/schema"
+            - $ref: "./api_contract.yaml#/components/schemas/Candle"
+      examples:
+        - name: aapl
+          payload:
+            symbol: AAPL
+            timestamp: "2026-10-29T17:07:00Z"
+            open: 231.10
+            high: 231.55
+            low: 231.02
+            close: 231.42
+            volume: 31250
+
+  schemas:
+    SymbolField:
+      schemaFormat: application/vnd.oai.openapi;version=3.0.0
+      schema:
+        type: object
+        required: [symbol]
+        properties:
+          symbol:
+            type: string
+            maxLength: 16
+            example: AAPL

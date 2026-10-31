@@ -1,0 +1,355 @@
+openapi: 3.0.3
+info:
+  title: OMAN Finance REST API
+  version: 0.1.0
+  description: |
+    REST API of the OMAN Finance paper trading platform, iteration 1.
+
+    The REST endpoints return the initial state when the app loads or the page
+    is reopened. After that the frontend keeps the data up to date through the
+    STOMP topics described in `stomp_contract.yaml`.
+
+    Conventions:
+    - There are no users in this iteration, so no endpoint needs authentication.
+    - A stock is identified by its `symbol` (e.g. `AAPL`).
+    - All prices are in USD and come from Alpaca's IEX feed.
+    - All timestamps are RFC 3339 date-times.
+    - "Last 60 minutes" means the last 60 trading minutes, not the last 60
+      clock minutes. When the market is closed, the endpoints return the last
+      60 minutes of the previous session.
+    - Errors are returned as RFC 9457 problem details (`application/problem+json`).
+    - Sorting the stock list by price, change or symbol is done on the client.
+      The endpoints take no sort parameters.
+
+servers:
+  - url: http://localhost
+    description: Through Nginx (dev and prod profiles)
+  - url: http://localhost:8080
+    description: Backend container directly (dev only)
+
+security: []
+
+tags:
+  - name: Market
+    description: Market open/closed status
+  - name: Stocks
+    description: Tracked stocks and their price data
+
+paths:
+  /api/market/status:
+    get:
+      tags: [Market]
+      operationId: getMarketStatus
+      summary: Get the current market status
+      description: |
+        Returns the last Alpaca `/v2/clock` response: whether the market is open, 
+        and the next open and close times. The frontend calls this when the system 
+        starts and when the website is reopened.
+      responses:
+        "200":
+          description: Current market status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketStatus"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /api/stocks:
+    get:
+      tags: [Stocks]
+      operationId: listStocks
+      summary: List the tracked stocks
+      description: |
+        Returns the symbol and name of every tracked stock. These are the
+        stocks whose data is pushed to the frontend over STOMP.
+      responses:
+        "200":
+          description: All tracked stocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Stock"
+              example:
+                - symbol: AAPL
+                  name: Apple Inc.
+                - symbol: MSFT
+                  name: Microsoft Corporation
+
+  /api/stocks/sparkline:
+    get:
+      tags: [Stocks]
+      operationId: listSparklines
+      summary: Get the last 60 minutes of prices for every stock
+      description: |
+        Returns 60 price points per tracked stock, one per minute, for the
+        minimized line graph in the stock list. Each point is the close
+        price of that minute's candle. Points are sorted oldest first.
+      responses:
+        "200":
+          description: One sparkline per tracked stock
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sparkline"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /api/stocks/stat:
+    get:
+      tags: [Stocks]
+      operationId: listStockStats
+      summary: Get the latest price and 60-minute change for every stock
+      description: |
+        Returns the most recent price, the change over the last 60 minutes and
+        the volume for every tracked stock.
+      responses:
+        "200":
+          description: One stat entry per tracked stock
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockStat"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /api/stocks/{symbol}/candles:
+    get:
+      tags: [Stocks]
+      operationId: getStockCandles
+      summary: Get the last 60 one-minute candles of a stock
+      description: |
+        Returns the last 60 one-minute candles (OHLCV) of one stock, sorted
+        oldest first. The frontend uses them for the candle/line price graph
+        and the volume bar graph on the stock page.
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+      responses:
+        "200":
+          description: Last 60 candles of the stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockCandles"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+components:
+  parameters:
+    Symbol:
+      name: symbol
+      in: path
+      required: true
+      description: Symbol of a tracked stock.
+      schema:
+        type: string
+        maxLength: 16
+        example: AAPL
+
+  schemas:
+    MarketStatus:
+      type: object
+      description: Alpaca `/v2/clock` response.
+      required: [timestamp, isOpen, nextOpen, nextClose]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Current time according to Alpaca when the clock was last fetched.
+          example: "2026-10-29T13:08:00-04:00"
+        isOpen:
+          type: boolean
+          description: Whether the market is open right now.
+          example: true
+        nextOpen:
+          type: string
+          format: date-time
+          description: When the market opens next.
+          example: "2026-10-30T09:30:00-04:00"
+        nextClose:
+          type: string
+          format: date-time
+          description: When the market closes next.
+          example: "2026-10-29T16:00:00-04:00"
+
+    Stock:
+      type: object
+      required: [symbol, name]
+      properties:
+        symbol:
+          type: string
+          maxLength: 16
+          example: AAPL
+        name:
+          type: string
+          description: Company name of the stock.
+          example: Apple Inc.
+
+    PricePoint:
+      type: object
+      required: [timestamp, price]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Start of the minute.
+          example: "2026-10-29T17:07:00Z"
+        price:
+          type: number
+          format: double
+          description: Close price of the minute in USD.
+          example: 231.42
+
+    Sparkline:
+      type: object
+      required: [symbol, points]
+      properties:
+        symbol:
+          type: string
+          example: AAPL
+        points:
+          type: array
+          description: 60 points, one per minute, oldest first.
+          minItems: 60
+          maxItems: 60
+          items:
+            $ref: "#/components/schemas/PricePoint"
+
+    StockStat:
+      type: object
+      required: [symbol, timestamp, price, change, changePercent, volume]
+      properties:
+        symbol:
+          type: string
+          example: AAPL
+        timestamp:
+          type: string
+          format: date-time
+          description: Start of the minute of the latest candle.
+          example: "2026-10-29T17:07:00Z"
+        price:
+          type: number
+          format: double
+          description: Close price of the latest candle in USD.
+          example: 231.42
+        change:
+          type: number
+          format: double
+          description: |
+            `price` minus the open price of the oldest of the last 60 candles,
+            in USD.
+          example: 1.87
+        changePercent:
+          type: number
+          format: double
+          description: |
+            `change` divided by the open price of the oldest of the last 60
+            candles, as a percentage (`0.81` means 0.81 %).
+          example: 0.81
+        volume:
+          type: integer
+          format: int64
+          description: Total number of shares traded over the last 60 candles.
+          example: 1843200
+
+    Candle:
+      type: object
+      description: One-minute candle built from an Alpaca bar.
+      required: [timestamp, open, high, low, close, volume]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Start of the minute.
+          example: "2026-10-29T17:07:00Z"
+        open:
+          type: number
+          format: double
+          example: 231.10
+        high:
+          type: number
+          format: double
+          example: 231.55
+        low:
+          type: number
+          format: double
+          example: 231.02
+        close:
+          type: number
+          format: double
+          example: 231.42
+        volume:
+          type: integer
+          format: int64
+          description: Number of shares traded during the minute.
+          example: 31250
+
+    StockCandles:
+      type: object
+      required: [symbol, candles]
+      properties:
+        symbol:
+          type: string
+          example: AAPL
+        candles:
+          type: array
+          description: 60 candles, one per minute, oldest first.
+          minItems: 60
+          maxItems: 60
+          items:
+            $ref: "#/components/schemas/Candle"
+
+    Problem:
+      type: object
+      description: RFC 9457 problem details, as produced by Spring's `ProblemDetail`.
+      properties:
+        type:
+          type: string
+          format: uri
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+
+  responses:
+    StockNotFound:
+      description: The symbol is not one of the tracked stocks.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Not Found
+            status: 404
+            detail: "Stock 'XYZ' is not tracked."
+            instance: /api/stocks/XYZ/candles
+
+    ServiceUnavailable:
+      description: |
+        Market data is not available yet, for example because the backend
+        cannot reach Alpaca or has not finished loading the data at startup.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Service Unavailable
+            status: 503
+            detail: Market data is not available yet.
+            instance: /api/stocks/sparkline
