@@ -25,7 +25,7 @@ flowchart LR
 
     ingestion -->|"streamBars()<br/>getBars(request)<br/>getTrackedSymbols()<br/>getMarketStatus()"| buffer
     buffer <-->|"candles"| redisCandles
-    buffer -->|"streamCandles()<br/>getLastCandles(symbol, 60)"| feed
+    buffer -->|"streamCandles()<br/>getLastCandles(symbol, 60)<br/>streamStockStat()<br/>getStockStat(symbol)"| feed
     ingestion -->|"getTrackedSymbols()<br/>getMarketStatus()"| feed
     feed <-->|"REST /api/*<br/>STOMP /ws"| browser
 ```
@@ -140,7 +140,7 @@ records, which the interfaces use.
     "edgeLabelBackground": "transparent"
   },
   "themeCSS": ".labelBkg, .edgeLabel, .edgeLabel p, .edgeLabel rect { background-color: transparent !important; fill: transparent !important; }",
-  "flowchart": { "curve": "basis", "nodeSpacing": 70, "rankSpacing": 95, "padding": 18, "htmlLabels": true }
+  "flowchart": { "curve": "basis", "nodeSpacing": 200, "rankSpacing": 95, "padding": 18, "htmlLabels": true }
 }}%%
 flowchart TB
     subgraph ext[" "]
@@ -166,6 +166,7 @@ flowchart TB
         subgraph bufferGap[" "]
             direction LR
             detector["<b>CandleGapDetector</b><br/><small>reads stored candles, returns the gap or none:<br/>before a given candle<br/>or in the last n trading minutes</small>"]
+            statCalc["<b>StockStatCalculator</b><br/><small>receives each candle from LiveCandleStream<br/>reads the last 60 candles<br/>computes price, change, change %, volume<br/>emits the stat, serves getStockStat(symbol)</small>"]
             backfiller["<b>CandleBackfiller</b><br/><small>builds BarsRequest for a<br/>missing range (start, end, limit, sort)<br/>Candle.from(symbol, bar)<br/>saves and returns the candles</small>"]
             candleRepo["<b>CandleRedisRepository</b><br/><small>ZADD, ZREMRANGEBYRANK, ZRANGE</small>"]
         end
@@ -176,14 +177,14 @@ flowchart TB
         end
         subgraph bufferIface[" "]
             direction LR
-            bufferApi{{"<i>«interface»</i><br/><b>CandleBuffer</b><br/><small>streamCandles(): stream of Candles<br/>getLastCandles(symbol, n)</small>"}}
+            bufferApi{{"<i>«interface»</i><br/><b>CandleBuffer</b><br/><small>streamCandles(): stream of Candles<br/>getLastCandles(symbol, n)<br/>streamStockStat(): stream of StockStats<br/>getStockStat(symbol): StockStat</small>"}}
             candleRecord["<i>«record»</i><br/><b>Candle</b><br/><small>symbol, openTime, open, high, low, close, volume<br/>static from(symbol, Bar): Candle</small>"]
         end
     end
 
     subgraph feed["<b>clientfeed</b>"]
         direction LR
-        rest["<b>REST controllers</b><br/><small>GET /api/stocks<br/>GET /api/candles/{symbol}<br/>GET /api/market/status</small>"]
+        rest["<b>REST controllers</b><br/><small>serve snapshots under /api/*</small>"]
         subgraph feedLive[" "]
             direction TB
             broadcaster["<b>CandleBroadcaster</b><br/><small>consumes streamCandles()</small>"]
@@ -196,18 +197,25 @@ flowchart TB
     browser["<b>Browser</b>"]
 
     %% Edge order is tuned for the layout: reordering adds crossings. In
-    %% particular the two skip-level CandleRedisRepository edges below
-    %% (save candle / read last n) must stay right after detector's edge, so
-    %% dagre routes them between CandleGapDetector and CandleBackfiller
-    %% instead of looping around the outside of the candlebuffer box.
+    %% particular the skip-level CandleRedisRepository edges below
+    %% (save candle / read last n / read last 60) must stay right after
+    %% detector's edge, so dagre routes them between CandleGapDetector and
+    %% CandleBackfiller instead of looping around the outside of the
+    %% candlebuffer box. The "Candle" edge right after the backfill call is
+    %% likewise what keeps StockStatCalculator centred between
+    %% CandleGapDetector and CandleBackfiller, below CandleHistory: adding
+    %% its arrows in any other order sends it to the far right of that row
+    %% (or, with a plain statCalc --> bufferApi arrow, flips the layout).
     %% "bufferApi <--> X" with marker-end:none draws X -> bufferApi but keeps the interface above X.
     candleRecord ~~~ candleRepo
     barsClient <-->|"save raw bars<br/>cached raw bars"| barRepo
     detector -.->|"calls<br/>read stored candles"| candleRepo
     candleHub -.->|"calls<br/>save candle"| candleRepo
     history -.->|"calls<br/>read last n"| candleRepo
+    statCalc -.->|"calls<br/>read last 60"| candleRepo
     bufferApi <-->|"stream of Candles"| candleHub
-    candleHub -.->|"calls<br/>backfill gap<br/>returns candles"| backfiller
+    candleHub -.-> backfiller
+    candleHub -->|"Candle"| statCalc
     barsClient -->|"bars response"| ingestionApi
     alpaca -->|"REST /v2/stocks/bars"| barsClient
     alpaca -->|"WS bars"| streamClient
@@ -235,19 +243,26 @@ flowchart TB
     history -.->|"calls<br/>gap in last n?"| detector
     stockRepo <-->|"read symbols<br/>add / remove symbol"| ingestionApi
     history -.->|"calls<br/>backfill gap<br/>returns candles"| backfiller
+    bufferApi <-->|"stream of StockStats"| statCalc
     %% linkStyle indices count the edges above in order (0-based): keep them
-    %% in sync when adding/removing/reordering edges. Red = live-bar path.
-    linkStyle 9,11,24,25,26,27,28 stroke:#ef4444,stroke-width:2px
-    linkStyle 5 stroke:#ef4444,stroke-width:2px,marker-end:none
-    linkStyle 22 marker-end:none
+    %% in sync when adding/removing/reordering edges. Red = live-bar path,
+    %% plus the Candle that LiveCandleStream hands to StockStatCalculator (8).
+    linkStyle 8,11,13,26,27,28,29,30 stroke:#ef4444,stroke-width:2px
+    linkStyle 6 stroke:#ef4444,stroke-width:2px,marker-end:none
+    linkStyle 24,36 marker-end:none
+    %% Grayed-out test styling (see `muted` class on detector): detector edges
+    %% 2, 16, 18, 33; LiveCandleStream → CandleBackfiller backfill call is 7.
+    linkStyle 2,7,16,18,33 stroke:#525252,stroke-width:1px,color:#8a8a8a
     classDef external   fill:#161616,stroke:#d4d4d4,stroke-width:2px,color:#f5f5f5
     classDef datastore  fill:#3f3f3f,stroke:#d4d4d4,stroke-width:1.5px,color:#f5f5f5
     classDef component  fill:#262626,stroke:#737373,stroke-width:1px,color:#e5e5e5
     classDef iface      fill:#262626,stroke:#d4d4d4,stroke-width:1.5px,stroke-dasharray:5 3,color:#f5f5f5
+    classDef muted      fill:#1d1d1d,stroke:#484848,stroke-width:1px,color:#8a8a8a
 
     class alpaca,browser external
     class pg,redisBars,redisCandles datastore
-    class stockRepo,streamClient,barHub,barRepo,barsClient,clock,history,detector,backfiller,candleHub,candleRecord,candleRepo,rest,broadcaster,wsConfig,barsRequest component
+    class stockRepo,streamClient,barHub,barRepo,barsClient,clock,history,statCalc,backfiller,candleHub,candleRecord,candleRepo,rest,broadcaster,wsConfig,barsRequest component
+    class detector muted
     class ingestionApi,bufferApi iface
 
     style ext fill:none,stroke:none
