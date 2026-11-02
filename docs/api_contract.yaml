@@ -17,7 +17,7 @@ info:
     - "Last 60 minutes" means the last 60 trading minutes, not the last 60
       clock minutes. When the market is closed, the endpoints return the last
       60 minutes of the previous session.
-    - Errors are returned as RFC 9457 problem details (`application/problem+json`).
+    - Errors use Spring Boot's default error body (see the `Error` schema).
     - Sorting the stock list by price, change or symbol is done on the client.
       The endpoints take no sort parameters.
 
@@ -307,49 +307,54 @@ components:
           items:
             $ref: "#/components/schemas/Candle"
 
-    Problem:
+    Error:
       type: object
-      description: RFC 9457 problem details, as produced by Spring's `ProblemDetail`.
+      description: |
+        Spring Boot's default error body, returned for every
+        `ResponseStatusException` and for unhandled errors.
+      required: [timestamp, status, error, path]
       properties:
-        type:
+        timestamp:
           type: string
-          format: uri
-          default: about:blank
-        title:
-          type: string
+          format: date-time
+          description: When the error happened.
+          example: "2026-11-02T12:45:00.000+00:00"
         status:
           type: integer
-        detail:
+          description: HTTP status code.
+          example: 404
+        error:
           type: string
-        instance:
+          description: Reason phrase of the HTTP status.
+          example: Not Found
+        path:
           type: string
-          format: uri-reference
+          description: Path of the request that failed.
+          example: /api/stocks/XYZ/candles
 
   responses:
     StockNotFound:
       description: The symbol is not one of the tracked stocks.
       content:
-        application/problem+json:
+        application/json:
           schema:
-            $ref: "#/components/schemas/Problem"
+            $ref: "#/components/schemas/Error"
           example:
-            type: about:blank
-            title: Not Found
+            timestamp: "2026-11-02T12:45:00.000+00:00"
             status: 404
-            detail: "Stock 'XYZ' is not tracked."
-            instance: /api/stocks/XYZ/candles
+            error: Not Found
+            path: /api/stocks/XYZ/candles
 
     ServiceUnavailable:
       description: |
         Market data is not available yet, for example because the backend
         cannot reach Alpaca or has not finished loading the data at startup.
       content:
-        application/problem+json:
+        application/json:
           schema:
-            $ref: "#/components/schemas/Problem"
+            $ref: "#/components/schemas/Error"
           example:
-            type: about:blank
-            title: Service Unavailable
+            timestamp: "2026-11-02T12:45:00.000+00:00"
             status: 503
-            detail: Market data is not available yet.
-            instance: /api/stocks/sparkline
+            error: Service Unavailable
+            path: /api/stocks/sparkline
