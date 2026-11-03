@@ -52,9 +52,7 @@ describe('getMarketStatus', () => {
   it('throws when real data has an invalid shape', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ isOpen: true }), { status: 200 }),
-      ),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ isOpen: true }), { status: 200 })),
     );
 
     await expect(getMarketStatus('real')).rejects.toThrow(

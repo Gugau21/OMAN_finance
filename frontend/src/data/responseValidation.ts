@@ -1,5 +1,5 @@
 import type { MarketStatus } from '../types/market';
-import type { PricePoint, Sparkline, Stock } from '../types/stock';
+import type { PricePoint, Sparkline, Stock, StockStat } from '../types/stock';
 
 const rfc3339DateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -38,12 +38,16 @@ export function parseSparklines(value: unknown): Sparkline[] {
   return value;
 }
 
+export function parseStockStats(value: unknown): StockStat[] {
+  if (!Array.isArray(value) || !value.every(isStockStat)) {
+    throw new Error('Stock stats response has an invalid shape');
+  }
+
+  return value;
+}
+
 function isStock(value: unknown): value is Stock {
-  return (
-    isRecord(value) &&
-    isNonEmptyString(value.symbol) &&
-    isNonEmptyString(value.name)
-  );
+  return isRecord(value) && isNonEmptyString(value.symbol) && isNonEmptyString(value.name);
 }
 
 function isSparkline(value: unknown): value is Sparkline {
@@ -56,13 +60,28 @@ function isSparkline(value: unknown): value is Sparkline {
   );
 }
 
-function isPricePoint(value: unknown): value is PricePoint {
+function isStockStat(value: unknown): value is StockStat {
   return (
     isRecord(value) &&
+    isNonEmptyString(value.symbol) &&
     isDateTime(value.timestamp) &&
-    typeof value.price === 'number' &&
-    Number.isFinite(value.price)
+    isFiniteNumber(value.price) &&
+    isFiniteNumber(value.change) &&
+    isFiniteNumber(value.changePercent) &&
+    isNonNegativeInteger(value.volume)
   );
+}
+
+function isPricePoint(value: unknown): value is PricePoint {
+  return isRecord(value) && isDateTime(value.timestamp) && isFiniteNumber(value.price);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -75,8 +94,6 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isDateTime(value: unknown): value is string {
   return (
-    typeof value === 'string' &&
-    rfc3339DateTime.test(value) &&
-    !Number.isNaN(Date.parse(value))
+    typeof value === 'string' && rfc3339DateTime.test(value) && !Number.isNaN(Date.parse(value))
   );
 }

@@ -12,3 +12,12 @@ export type Sparkline = {
   symbol: string;
   points: PricePoint[];
 };
+
+export type StockStat = {
+  symbol: string;
+  timestamp: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+};

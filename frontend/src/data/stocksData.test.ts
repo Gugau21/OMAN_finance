@@ -46,13 +46,11 @@ describe('getStocks', () => {
   it('throws when real data has an invalid shape', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify([{ symbol: 'AAPL' }]), { status: 200 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify([{ symbol: 'AAPL' }]), { status: 200 })),
     );
 
-    await expect(getStocks('real')).rejects.toThrow(
-      'Stocks response has an invalid shape',
-    );
+    await expect(getStocks('real')).rejects.toThrow('Stocks response has an invalid shape');
   });
 });

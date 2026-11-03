@@ -69,8 +69,6 @@ describe('getSparklines', () => {
       ),
     );
 
-    await expect(getSparklines('real')).rejects.toThrow(
-      'Sparklines response has an invalid shape',
-    );
+    await expect(getSparklines('real')).rejects.toThrow('Sparklines response has an invalid shape');
   });
 });
