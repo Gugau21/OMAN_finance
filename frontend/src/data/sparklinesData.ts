@@ -1,6 +1,7 @@
 import type { PricePoint, Sparkline } from '../types/stock';
 
 import { getConfiguredDataSource, type DataSource } from './dataSource';
+import { parseSparklines } from './responseValidation';
 
 const mockSparklines: Sparkline[] = [
   createMockSparkline('AAPL', 231.42),
@@ -21,7 +22,7 @@ export async function getSparklines(
     throw new Error(`Failed to fetch sparklines: ${response.status} ${response.statusText}`);
   }
 
-  return response.json() as Promise<Sparkline[]>;
+  return parseSparklines(await response.json());
 }
 
 function createMockSparkline(symbol: string, lastPrice: number): Sparkline {

@@ -48,4 +48,17 @@ describe('getMarketStatus', () => {
       'Failed to fetch market status: 503 Service Unavailable',
     );
   });
+
+  it('throws when real data has an invalid shape', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ isOpen: true }), { status: 200 }),
+      ),
+    );
+
+    await expect(getMarketStatus('real')).rejects.toThrow(
+      'Market status response has an invalid shape',
+    );
+  });
 });

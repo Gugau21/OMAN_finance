@@ -1,6 +1,7 @@
 import type { MarketStatus } from '../types/market';
 
 import { getConfiguredDataSource, type DataSource } from './dataSource';
+import { parseMarketStatus } from './responseValidation';
 
 export type MarketDataSource = DataSource;
 
@@ -24,5 +25,5 @@ export async function getMarketStatus(
     throw new Error(`Failed to fetch market status: ${response.status} ${response.statusText}`);
   }
 
-  return response.json() as Promise<MarketStatus>;
+  return parseMarketStatus(await response.json());
 }

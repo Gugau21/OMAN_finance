@@ -21,7 +21,10 @@ describe('getSparklines', () => {
     const sparklines = [
       {
         symbol: 'AAPL',
-        points: [{ timestamp: '2026-10-29T17:07:00Z', price: 231.42 }],
+        points: Array.from({ length: 60 }, (_, index) => ({
+          timestamp: new Date(Date.UTC(2026, 9, 29, 17, index)).toISOString(),
+          price: 231.42,
+        })),
       },
     ];
 
@@ -47,6 +50,27 @@ describe('getSparklines', () => {
 
     await expect(getSparklines('real')).rejects.toThrow(
       'Failed to fetch sparklines: 503 Service Unavailable',
+    );
+  });
+
+  it('throws when real data has an invalid shape', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            {
+              symbol: 'AAPL',
+              points: [{ timestamp: 'invalid', price: 231.42 }],
+            },
+          ]),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    await expect(getSparklines('real')).rejects.toThrow(
+      'Sparklines response has an invalid shape',
     );
   });
 });
