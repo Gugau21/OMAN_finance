@@ -1,0 +1,17 @@
+Ticket No.,Priority,WHAT?,DONE?,,Acceptance Criteria
+1,1: must-be,See all live stocks,FALSE,FALSE,"See a list of all 30 stocks. For each stock we see:
+1. Name and symbol
+2. Minimized ""Line"" graph
+3. Current live price in USD (15 minute delay)
+4. See change (% and numerical) from last 60 minutes"
+,,,,FALSE,You can see a specific stock by clicking on it
+,,,,FALSE,You can sort the list by Price/Change/Symbol
+2,1: must-be,See specific stock,FALSE,FALSE,See name and symbol of specific stock
+,,,,FALSE,See the current live price in USD (15 minute delay)
+,,,,FALSE,See graph with history of prices for last 60 minutes (1 candle per minute)
+,,,,FALSE,See bar graph with history of volumes for last 60 minutes (1 bar per minute)
+,,,,FALSE,See change (% and numerical) from last 60 minutes
+,,,,FALSE,Graph must update every minute
+,,,,FALSE,"Be able to change graph representation between ""Candle"" and ""Line"""
+,,,,FALSE,See whether market is closed/open
+,,,,FALSE,See stock price when hovering mouse over specific candle/point in line

@@ -6,9 +6,6 @@ on:
       - "frontend/**"
       - ".github/workflows/frontend-test.yml"
   pull_request:
-    paths:
-      - "frontend/**"
-      - ".github/workflows/frontend-test.yml"
 
 defaults:
   run:
