@@ -12,7 +12,7 @@ Write a short subject that says what the commit does. Put the detail in the body
 - Return cached raw bars when the bar cache already has them
 ```
 
-One subject, one concern. If a commit has no related issue, then write [none] as prefix.
+One subject, one concern.
 
 ## Issue prefixes
 
