@@ -8,7 +8,9 @@ const mockStocks: Stock[] = [
   { symbol: 'NVDA', name: 'NVIDIA Corporation' },
 ];
 
-export async function getStocks(source: DataSource = getConfiguredDataSource()): Promise<Stock[]> {
+export async function getStocks(
+  source: DataSource = getConfiguredDataSource('stocks'),
+): Promise<Stock[]> {
   if (source === 'mock') {
     return mockStocks;
   }

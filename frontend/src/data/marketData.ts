@@ -12,7 +12,7 @@ const mockMarketStatus: MarketStatus = {
 };
 
 export async function getMarketStatus(
-  source: MarketDataSource = getConfiguredDataSource(),
+  source: MarketDataSource = getConfiguredDataSource('marketStatus'),
 ): Promise<MarketStatus> {
   if (source === 'mock') {
     return mockMarketStatus;
