@@ -1,12 +1,13 @@
 export type DataSource = 'mock' | 'real';
 
-export type DataEndpoint = 'marketStatus' | 'stocks';
+export type DataEndpoint = 'marketStatus' | 'stocks' | 'sparklines';
 
 export function getConfiguredDataSource(endpoint: DataEndpoint): DataSource {
-  const endpointOverride =
-    endpoint === 'marketStatus'
-      ? import.meta.env.VITE_MOCK_MARKET_STATUS
-      : import.meta.env.VITE_MOCK_STOCKS;
+  const endpointOverride = {
+    marketStatus: import.meta.env.VITE_MOCK_MARKET_STATUS,
+    stocks: import.meta.env.VITE_MOCK_STOCKS,
+    sparklines: import.meta.env.VITE_MOCK_SPARKLINES,
+  }[endpoint];
 
   if (endpointOverride === 'true') {
     return 'mock';

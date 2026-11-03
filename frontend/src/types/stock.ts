@@ -2,3 +2,13 @@ export type Stock = {
   symbol: string;
   name: string;
 };
+
+export type PricePoint = {
+  timestamp: string;
+  price: number;
+};
+
+export type Sparkline = {
+  symbol: string;
+  points: PricePoint[];
+};
