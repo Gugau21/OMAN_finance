@@ -26,9 +26,7 @@ describe('getMarketStatus', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify(response), { status: 200 }),
-      ),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 200 })),
     );
 
     await expect(getMarketStatus('real')).resolves.toEqual(response);
