@@ -16,6 +16,42 @@ describe('getMarketStatus', () => {
     });
   });
 
+  it('returns null for the empty mock scenario', async () => {
+    await expect(getMarketStatus({ source: 'mock', scenario: 'empty' })).resolves.toBeNull();
+  });
+
+  it('throws for the error mock scenario', async () => {
+    await expect(getMarketStatus({ source: 'mock', scenario: 'error' })).rejects.toThrow(
+      'Market status mock request failed',
+    );
+  });
+
+  it('stays pending for the loading mock scenario until aborted', async () => {
+    const controller = new AbortController();
+    const request = getMarketStatus({
+      source: 'mock',
+      scenario: 'loading',
+      signal: controller.signal,
+    });
+
+    let settled = false;
+    void request.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    controller.abort();
+
+    await expect(request).rejects.toThrow('Market status mock request aborted');
+  });
+
   it('returns real data when requested', async () => {
     const response = {
       timestamp: '2026-10-29T13:08:00-04:00',

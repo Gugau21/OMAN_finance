@@ -15,6 +15,42 @@ describe('getStocks', () => {
     ]);
   });
 
+  it('returns null for the empty mock scenario', async () => {
+    await expect(getStocks({ source: 'mock', scenario: 'empty' })).resolves.toBeNull();
+  });
+
+  it('throws for the error mock scenario', async () => {
+    await expect(getStocks({ source: 'mock', scenario: 'error' })).rejects.toThrow(
+      'Stocks mock request failed',
+    );
+  });
+
+  it('stays pending for the loading mock scenario until aborted', async () => {
+    const controller = new AbortController();
+    const request = getStocks({
+      source: 'mock',
+      scenario: 'loading',
+      signal: controller.signal,
+    });
+
+    let settled = false;
+    void request.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    controller.abort();
+
+    await expect(request).rejects.toThrow('Stocks mock request aborted');
+  });
+
   it('returns real stocks when requested', async () => {
     const stocks = [{ symbol: 'AAPL', name: 'Apple Inc.' }];
 

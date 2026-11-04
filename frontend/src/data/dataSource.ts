@@ -1,4 +1,5 @@
 export type DataSource = 'mock' | 'real';
+export type MockScenario = 'success' | 'empty' | 'error' | 'loading';
 
 export type DataEndpoint = 'marketStatus' | 'stocks' | 'sparklines' | 'stockStats';
 
