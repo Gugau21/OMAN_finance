@@ -60,7 +60,7 @@ public record BarsRequest(
   }
 
   /** Returns a copy that asks for the page after the one that returned {@code token}. */
-  public BarsRequest withPageToken(String token) {
+  BarsRequest withPageToken(String token) {
     return new BarsRequest(
         symbols, timeframe, start, end, limit, sort, adjustment, asof, currency, token);
   }

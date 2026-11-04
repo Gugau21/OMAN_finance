@@ -36,7 +36,7 @@ public record BarsResponse(
   }
 
   /** Whether Alpaca has another page for the same request. */
-  public boolean hasNextPage() {
+  boolean hasNextPage() {
     return nextPageToken != null && !nextPageToken.isEmpty();
   }
 }
