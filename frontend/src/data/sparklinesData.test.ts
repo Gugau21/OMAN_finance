@@ -10,11 +10,51 @@ describe('getSparklines', () => {
   it('returns 60 points per stock for mock data', async () => {
     const sparklines = await getSparklines('mock');
 
+    if (sparklines === null) {
+      throw new Error('Expected mock sparklines');
+    }
+
     expect(sparklines).toHaveLength(3);
     expect(sparklines[0]?.symbol).toBe('AAPL');
     expect(sparklines[0]?.points).toHaveLength(60);
     expect(sparklines[0]?.points[0]?.price).toBe(226.7);
     expect(sparklines[0]?.points[59]?.price).toBe(231.42);
+  });
+
+  it('returns null for the empty mock scenario', async () => {
+    await expect(getSparklines({ source: 'mock', scenario: 'empty' })).resolves.toBeNull();
+  });
+
+  it('throws for the error mock scenario', async () => {
+    await expect(getSparklines({ source: 'mock', scenario: 'error' })).rejects.toThrow(
+      'Sparklines mock request failed',
+    );
+  });
+
+  it('stays pending for the loading mock scenario until aborted', async () => {
+    const controller = new AbortController();
+    const request = getSparklines({
+      source: 'mock',
+      scenario: 'loading',
+      signal: controller.signal,
+    });
+
+    let settled = false;
+    void request.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    controller.abort();
+
+    await expect(request).rejects.toThrow('Sparklines mock request aborted');
   });
 
   it('returns real data when requested', async () => {
