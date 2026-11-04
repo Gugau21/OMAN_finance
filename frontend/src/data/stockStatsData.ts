@@ -1,7 +1,13 @@
 import type { StockStat } from '../types/stock';
 
-import { getConfiguredDataSource, type DataSource } from './dataSource';
+import { getConfiguredDataSource, type DataSource, type MockScenario } from './dataSource';
 import { parseStockStats } from './responseValidation';
+
+export type StockStatsOptions = {
+  source?: DataSource;
+  scenario?: MockScenario;
+  signal?: AbortSignal;
+};
 
 const mockStockStats: StockStat[] = [
   {
@@ -31,17 +37,65 @@ const mockStockStats: StockStat[] = [
 ];
 
 export async function getStockStats(
-  source: DataSource = getConfiguredDataSource('stockStats'),
-): Promise<StockStat[]> {
+  sourceOrOptions: DataSource | StockStatsOptions = {},
+): Promise<StockStat[] | null> {
+  const options =
+    typeof sourceOrOptions === 'string' ? { source: sourceOrOptions } : sourceOrOptions;
+  const source = options.source ?? getConfiguredDataSource('stockStats');
+
   if (source === 'mock') {
-    return mockStockStats;
+    return getMockStockStats(options.scenario, options.signal);
   }
 
-  const response = await fetch('/api/stocks/stat');
+  const response = options.signal
+    ? await fetch('/api/stocks/stat', { signal: options.signal })
+    : await fetch('/api/stocks/stat');
 
   if (!response.ok) {
     throw new Error(`Failed to fetch stock stats: ${response.status} ${response.statusText}`);
   }
 
   return parseStockStats(await response.json());
+}
+
+async function getMockStockStats(
+  scenario: MockScenario = getConfiguredScenario(),
+  signal?: AbortSignal,
+): Promise<StockStat[] | null> {
+  if (scenario === 'empty') {
+    return null;
+  }
+
+  if (scenario === 'error') {
+    throw new Error('Stock stats mock request failed');
+  }
+
+  if (scenario === 'loading') {
+    return waitForever(signal);
+  }
+
+  return mockStockStats;
+}
+
+function getConfiguredScenario(): MockScenario {
+  const configuredScenario = import.meta.env.VITE_STOCK_STATS_SCENARIO;
+
+  return configuredScenario === 'empty' ||
+    configuredScenario === 'error' ||
+    configuredScenario === 'loading'
+    ? configuredScenario
+    : 'success';
+}
+
+function waitForever(signal?: AbortSignal): Promise<never> {
+  return new Promise((_, reject) => {
+    if (signal?.aborted) {
+      reject(new Error('Stock stats mock request aborted'));
+      return;
+    }
+
+    signal?.addEventListener('abort', () => reject(new Error('Stock stats mock request aborted')), {
+      once: true,
+    });
+  });
 }

@@ -10,6 +10,10 @@ describe('getStockStats', () => {
   it('returns mock stock stats when requested', async () => {
     const stockStats = await getStockStats('mock');
 
+    if (stockStats === null) {
+      throw new Error('Expected mock stock stats');
+    }
+
     expect(stockStats).toHaveLength(3);
     expect(stockStats[0]).toEqual({
       symbol: 'AAPL',
@@ -19,6 +23,42 @@ describe('getStockStats', () => {
       changePercent: 0.81,
       volume: 1843200,
     });
+  });
+
+  it('returns null for the empty mock scenario', async () => {
+    await expect(getStockStats({ source: 'mock', scenario: 'empty' })).resolves.toBeNull();
+  });
+
+  it('throws for the error mock scenario', async () => {
+    await expect(getStockStats({ source: 'mock', scenario: 'error' })).rejects.toThrow(
+      'Stock stats mock request failed',
+    );
+  });
+
+  it('stays pending for the loading mock scenario until aborted', async () => {
+    const controller = new AbortController();
+    const request = getStockStats({
+      source: 'mock',
+      scenario: 'loading',
+      signal: controller.signal,
+    });
+
+    let settled = false;
+    void request.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    controller.abort();
+
+    await expect(request).rejects.toThrow('Stock stats mock request aborted');
   });
 
   it('returns real stock stats when requested', async () => {
