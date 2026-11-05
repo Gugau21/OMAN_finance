@@ -24,7 +24,8 @@ public interface MarketIngestion {
    * more pages and returns them all in one response, so its {@code nextPageToken} is always null.
    * Blocks until the bars are available.
    *
-   * @throws RuntimeException when Alpaca cannot be reached or rejects the request
+   * @throws AlpacaUnavailableException when Alpaca returns 429 or 5xx or does not answer in time
+   * @throws AlpacaConfigException when Alpaca rejects the API keys with 401 or 403
    */
   BarsResponse getBars(BarsRequest request);
 
