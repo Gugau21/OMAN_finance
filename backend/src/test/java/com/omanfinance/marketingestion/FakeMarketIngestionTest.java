@@ -212,13 +212,10 @@ class FakeMarketIngestionTest {
 
   @Test
   void reportsAnOpenMarket() {
-    assertThat(fake.getMarketStatus())
-        .hasValueSatisfying(
-            clock -> {
-              assertThat(clock.isOpen()).isTrue();
-              assertThat(clock.timestamp()).isEqualTo(NOW);
-              assertThat(clock.nextClose()).isEqualTo(Instant.parse("2026-11-06T00:00:00Z"));
-            });
+    Clock clock = fake.getMarketStatus();
+    assertThat(clock.isOpen()).isTrue();
+    assertThat(clock.timestamp()).isEqualTo(NOW);
+    assertThat(clock.nextClose()).isEqualTo(Instant.parse("2026-11-06T00:00:00Z"));
   }
 
   @Test

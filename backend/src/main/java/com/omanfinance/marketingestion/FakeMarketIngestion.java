@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.SplittableRandom;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -131,8 +130,8 @@ public class FakeMarketIngestion implements MarketIngestion {
 
   /** An open market whose {@code next_close} is the end of the current UTC day. */
   @Override
-  public Optional<Clock> getMarketStatus() {
-    return Optional.of(currentClock());
+  public Clock getMarketStatus() {
+    return currentClock();
   }
 
   /** Emits the current status once to each subscriber and then nothing; it does not complete. */

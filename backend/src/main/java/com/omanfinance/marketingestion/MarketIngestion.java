@@ -1,7 +1,6 @@
 package com.omanfinance.marketingestion;
 
 import java.util.List;
-import java.util.Optional;
 import reactor.core.publisher.Flux;
 
 /**
@@ -29,14 +28,18 @@ public interface MarketIngestion {
    */
   BarsResponse getBars(BarsRequest request);
 
-  /** The last market status Alpaca returned, or empty before the first response has arrived. */
-  Optional<Clock> getMarketStatus();
+  /**
+   * The last market status Alpaca returned. The first {@code /v2/clock} request is made while the
+   * application starts, before other modules can call this, and the application does not start if
+   * it fails, so there is always a value.
+   */
+  Clock getMarketStatus();
 
   /**
    * Every market status Alpaca returns: one item per {@code /v2/clock} response, at startup, when
    * the market opens or closes and on the periodic refresh, even when nothing but the {@code
-   * timestamp} changed. A new subscriber first gets the current status, if there is one. It does
-   * not complete while the application runs.
+   * timestamp} changed. A new subscriber first gets the current status. It does not complete while
+   * the application runs.
    */
   Flux<Clock> streamMarketStatus();
 
