@@ -26,6 +26,13 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost}
 
+alpaca:
+  api-key-id: ${ALPACA_API_KEY_ID:}
+  api-secret-key: ${ALPACA_API_SECRET_KEY:}
+  trading-base-url: ${ALPACA_TRADING_BASE_URL:https://paper-api.alpaca.markets}
+  data-base-url: ${ALPACA_DATA_BASE_URL:https://data.alpaca.markets}
+  stream-url: ${ALPACA_STREAM_URL:wss://stream.data.alpaca.markets/v2/iex}
+
 management:
   endpoints:
     web:
