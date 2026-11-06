@@ -1,8 +1,13 @@
-package com.omanfinance.marketingestion;
+package com.omanfinance.marketingestion.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.omanfinance.marketingestion.api.MarketIngestion;
+import com.omanfinance.marketingestion.api.dto.Bar;
+import com.omanfinance.marketingestion.api.dto.BarsRequest;
+import com.omanfinance.marketingestion.api.dto.BarsResponse;
+import com.omanfinance.marketingestion.api.dto.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;

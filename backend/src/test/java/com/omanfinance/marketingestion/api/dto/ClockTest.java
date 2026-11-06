@@ -1,4 +1,4 @@
-package com.omanfinance.marketingestion;
+package com.omanfinance.marketingestion.api.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

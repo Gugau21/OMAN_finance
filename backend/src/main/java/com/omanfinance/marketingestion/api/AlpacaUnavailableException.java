@@ -1,4 +1,4 @@
-package com.omanfinance.marketingestion;
+package com.omanfinance.marketingestion.api;
 
 /**
  * Alpaca could not answer for now: it returned 429 or 5xx, or the request timed out. Trying again

@@ -1,4 +1,4 @@
-package com.omanfinance.marketingestion;
+package com.omanfinance.marketingestion.api;
 
 /**
  * Alpaca rejected the API keys with 401 or 403. Trying again will not help until the keys in {@code

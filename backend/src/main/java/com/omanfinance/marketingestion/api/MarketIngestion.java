@@ -1,5 +1,9 @@
-package com.omanfinance.marketingestion;
+package com.omanfinance.marketingestion.api;
 
+import com.omanfinance.marketingestion.api.dto.Bar;
+import com.omanfinance.marketingestion.api.dto.BarsRequest;
+import com.omanfinance.marketingestion.api.dto.BarsResponse;
+import com.omanfinance.marketingestion.api.dto.Clock;
 import java.util.List;
 import reactor.core.publisher.Flux;
 
