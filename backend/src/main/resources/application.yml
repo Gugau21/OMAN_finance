@@ -32,6 +32,8 @@ alpaca:
   trading-base-url: ${ALPACA_TRADING_BASE_URL:https://paper-api.alpaca.markets}
   data-base-url: ${ALPACA_DATA_BASE_URL:https://data.alpaca.markets}
   stream-url: ${ALPACA_STREAM_URL:wss://stream.data.alpaca.markets/v2/iex}
+  connect-timeout: ${ALPACA_CONNECT_TIMEOUT:5s}
+  read-timeout: ${ALPACA_READ_TIMEOUT:10s}
 
 management:
   endpoints:
