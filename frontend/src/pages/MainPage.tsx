@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { getMarketStatus } from '../data/marketData';
 import { getStocks } from '../data/stocksData';
 import { getStockStats } from '../data/stockStatsData';
+import { getSparklines } from '../data/sparklinesData';
 import type { MarketStatus } from '../types/market';
+import type { PricePoint } from '../types/stock';
+import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
 
 type CombinedStockData = {
   symbol: string;
@@ -11,6 +14,7 @@ type CombinedStockData = {
   change: number;
   changePercent: number;
   volume: number;
+  sparkline: PricePoint[];
 };
 
 export function MainPage() {
@@ -24,10 +28,11 @@ export function MainPage() {
 
     async function loadDashboardData() {
       try {
-        const [status, stocks, stats] = await Promise.all([
+        const [status, stocks, stats, sparklines] = await Promise.all([
           getMarketStatus({ signal: controller.signal }),
           getStocks({ signal: controller.signal }),
           getStockStats({ signal: controller.signal }),
+          getSparklines({ signal: controller.signal }),
         ]);
 
         if (status) {
@@ -43,9 +48,10 @@ export function MainPage() {
           );
         }
 
-        if (stocks && stats) {
+        if (stocks && stats && sparklines) {
           const combined = stocks.map((stock) => {
             const stat = stats.find((s) => s.symbol === stock.symbol);
+            const spark = sparklines.find((s) => s.symbol === stock.symbol);
 
             return {
               symbol: stock.symbol,
@@ -54,6 +60,7 @@ export function MainPage() {
               change: stat?.change || 0,
               changePercent: stat?.changePercent || 0,
               volume: stat?.volume || 0,
+              sparkline: spark?.points || [],
             };
           });
           setStocksData(combined);
@@ -112,12 +119,14 @@ export function MainPage() {
                   <th className="py-3 px-2 font-normal text-right">Change</th>
                   <th className="py-3 px-2 font-normal text-right">Change %</th>
                   <th className="py-3 px-2 font-normal text-right">Volume</th>
+                  <th className="py-3 px-2 font-normal text-right">7-day trend</th>
                 </tr>
               </thead>
               <tbody className="text-xs">
                 {stocksData.map((row) => {
                   const isPositive = row.change >= 0;
                   const colorClass = isPositive ? 'text-green-600' : 'text-red-500';
+                  const strokeColor = isPositive ? '#16a34a' : '#ef4444';
 
                   return (
                     <tr
@@ -145,6 +154,21 @@ export function MainPage() {
                       </td>
                       <td className="py-3 px-2 text-right text-gray-700">
                         {formatVolume(row.volume)}
+                      </td>
+                      <td className="py-3 px-2 h-10 w-20">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={row.sparkline}>
+                            <YAxis domain={['dataMin', 'dataMax']} hide />
+                            <Line
+                              type="monotone"
+                              dataKey="price"
+                              stroke={strokeColor}
+                              strokeWidth={1.5}
+                              dot={false}
+                              isAnimationActive={false}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
                       </td>
                     </tr>
                   );
