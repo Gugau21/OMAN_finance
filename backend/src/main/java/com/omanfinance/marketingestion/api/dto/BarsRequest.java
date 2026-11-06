@@ -1,4 +1,4 @@
-package com.omanfinance.marketingestion;
+package com.omanfinance.marketingestion.api.dto;
 
 import java.time.Instant;
 import java.time.LocalDate;

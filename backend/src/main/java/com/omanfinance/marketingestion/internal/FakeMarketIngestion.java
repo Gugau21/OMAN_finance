@@ -1,5 +1,10 @@
-package com.omanfinance.marketingestion;
+package com.omanfinance.marketingestion.internal;
 
+import com.omanfinance.marketingestion.api.MarketIngestion;
+import com.omanfinance.marketingestion.api.dto.Bar;
+import com.omanfinance.marketingestion.api.dto.BarsRequest;
+import com.omanfinance.marketingestion.api.dto.BarsResponse;
+import com.omanfinance.marketingestion.api.dto.Clock;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;

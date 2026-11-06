@@ -1,4 +1,4 @@
-package com.omanfinance.marketingestion;
+package com.omanfinance.marketingestion.internal;
 
 import java.net.URI;
 import org.springframework.boot.context.properties.ConfigurationProperties;

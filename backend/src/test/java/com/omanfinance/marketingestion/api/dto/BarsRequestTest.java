@@ -1,10 +1,8 @@
-package com.omanfinance.marketingestion;
+package com.omanfinance.marketingestion.api.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.omanfinance.marketingestion.BarsRequest.Adjustment;
-import com.omanfinance.marketingestion.BarsRequest.Sort;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,8 +19,8 @@ class BarsRequestTest {
     BarsRequest request = BarsRequest.of(List.of("AAPL"), BarsRequest.ONE_MINUTE, null, null);
 
     assertThat(request.limit()).isEqualTo(1000);
-    assertThat(request.sort()).isEqualTo(Sort.ASC);
-    assertThat(request.adjustment()).isEqualTo(Adjustment.RAW);
+    assertThat(request.sort()).isEqualTo(BarsRequest.Sort.ASC);
+    assertThat(request.adjustment()).isEqualTo(BarsRequest.Adjustment.RAW);
     assertThat(request.currency()).isEqualTo("USD");
     assertThat(request.start()).isNull();
     assertThat(request.end()).isNull();
@@ -39,15 +37,15 @@ class BarsRequestTest {
             START,
             END,
             60,
-            Sort.DESC,
-            Adjustment.SPLIT,
+            BarsRequest.Sort.DESC,
+            BarsRequest.Adjustment.SPLIT,
             null,
             "EUR",
             "tok");
 
     assertThat(request.limit()).isEqualTo(60);
-    assertThat(request.sort()).isEqualTo(Sort.DESC);
-    assertThat(request.adjustment()).isEqualTo(Adjustment.SPLIT);
+    assertThat(request.sort()).isEqualTo(BarsRequest.Sort.DESC);
+    assertThat(request.adjustment()).isEqualTo(BarsRequest.Adjustment.SPLIT);
     assertThat(request.currency()).isEqualTo("EUR");
     assertThat(request.pageToken()).isEqualTo("tok");
   }
@@ -97,10 +95,10 @@ class BarsRequestTest {
 
   @Test
   void enumsUseAlpacaQueryValues() {
-    assertThat(Sort.ASC.value()).isEqualTo("asc");
-    assertThat(Sort.DESC.value()).isEqualTo("desc");
-    assertThat(Adjustment.SPIN_OFF.value()).isEqualTo("spin-off");
-    assertThat(Adjustment.ALL.value()).isEqualTo("all");
+    assertThat(BarsRequest.Sort.ASC.value()).isEqualTo("asc");
+    assertThat(BarsRequest.Sort.DESC.value()).isEqualTo("desc");
+    assertThat(BarsRequest.Adjustment.SPIN_OFF.value()).isEqualTo("spin-off");
+    assertThat(BarsRequest.Adjustment.ALL.value()).isEqualTo("all");
   }
 
   private static BarsRequest withLimit(int limit) {
