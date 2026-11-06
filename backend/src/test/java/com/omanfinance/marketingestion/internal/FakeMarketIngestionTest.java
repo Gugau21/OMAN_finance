@@ -8,6 +8,7 @@ import com.omanfinance.marketingestion.api.dto.Bar;
 import com.omanfinance.marketingestion.api.dto.BarsRequest;
 import com.omanfinance.marketingestion.api.dto.BarsResponse;
 import com.omanfinance.marketingestion.api.dto.Clock;
+import com.omanfinance.marketingestion.api.dto.Stock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
@@ -233,11 +234,14 @@ class FakeMarketIngestionTest {
   }
 
   @Test
-  void tracksAFixedUnmodifiableSymbolList() {
-    List<String> symbols = fake.getTrackedSymbols();
+  void tracksAFixedUnmodifiableStockListWithNames() {
+    List<Stock> stocks = fake.getTrackedStocks();
 
-    assertThat(symbols).isNotEmpty().doesNotHaveDuplicates();
-    assertThatThrownBy(() -> symbols.add("TSLA")).isInstanceOf(UnsupportedOperationException.class);
+    assertThat(stocks).isNotEmpty();
+    assertThat(stocks).extracting(Stock::symbol).doesNotHaveDuplicates();
+    assertThat(stocks).allSatisfy(stock -> assertThat(stock.name()).isNotBlank());
+    assertThatThrownBy(() -> stocks.add(new Stock("TSLA", "Tesla, Inc.")))
+        .isInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test

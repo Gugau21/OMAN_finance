@@ -4,6 +4,7 @@ import com.omanfinance.marketingestion.api.dto.Bar;
 import com.omanfinance.marketingestion.api.dto.BarsRequest;
 import com.omanfinance.marketingestion.api.dto.BarsResponse;
 import com.omanfinance.marketingestion.api.dto.Clock;
+import com.omanfinance.marketingestion.api.dto.Stock;
 import java.util.List;
 import reactor.core.publisher.Flux;
 
@@ -47,8 +48,11 @@ public interface MarketIngestion {
    */
   Flux<Clock> streamMarketStatus();
 
-  /** The symbols currently tracked, in a stable order. The list is unmodifiable. */
-  List<String> getTrackedSymbols();
+  /**
+   * The stocks currently tracked, each with its symbol and company name, in a stable order. The
+   * list is unmodifiable.
+   */
+  List<Stock> getTrackedStocks();
 
   /**
    * Starts tracking {@code symbol}: stores it and subscribes the live stream to it. Not implemented

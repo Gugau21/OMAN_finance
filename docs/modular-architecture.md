@@ -23,10 +23,10 @@ flowchart LR
     pg -->|"symbols"| ingestion
     ingestion <-->|"raw bars"| redisBars
 
-    ingestion -->|"streamBars()<br/>getBars(request)<br/>getTrackedSymbols()<br/>getMarketStatus()"| buffer
+    ingestion -->|"streamBars()<br/>getBars(request)<br/>getTrackedStocks()<br/>getMarketStatus()"| buffer
     buffer <-->|"candles"| redisCandles
     buffer -->|"streamCandles()<br/>getLastCandles(symbol, 60)<br/>streamStockStat()<br/>getStockStat(symbol)"| feed
-    ingestion -->|"getTrackedSymbols()<br/>getMarketStatus()"| feed
+    ingestion -->|"getTrackedStocks()<br/>getMarketStatus()"| feed
     feed <-->|"REST /api/*<br/>STOMP /ws"| browser
 ```
 
@@ -154,7 +154,7 @@ flowchart TB
         barsClient["<b>AlpacaBarsClient</b><br/><small>GET /v2/stocks/bars<br/>returns cached raw bars if Redis has the range,<br/>else passes the request through, adds feed=iex,<br/>saves and returns the raw response</small>"]
         barRepo["<b>BarRedisRepository</b><br/><small>raw Alpaca bars</small>"]
         stockRepo["<b>StockRepository</b><br/><small>SELECT / INSERT / DELETE on Stock<br/>keeps the symbol list in memory</small>"]
-        ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): stream of Bars<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>getTrackedSymbols()<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
+        ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): stream of Bars<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>getTrackedStocks(): list of Stocks<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
         clock["<b>MarketClock</b><br/><small>polls /v2/clock at next open / close<br/>holds the last response in memory</small>"]
         barHub["<b>LiveBarStream</b><br/><small>emits each Bar to every subscriber<br/>no saving</small>"]
         barsRequest["<i>«record»</i><br/><b>BarsRequest</b><br/><small>query of GET /v2/stocks/bars · free plan</small><small><table style='white-space:nowrap'><tr><td align='left'><b>symbols</b></td><td align='left'>AAPL,MSFT</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>timeframe</b></td><td align='left'>1Min</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>start</b></td><td align='left'>RFC-3339</td><td align='left'><i>start of day</i></td></tr><tr><td align='left'><b>end</b></td><td align='left'>RFC-3339</td><td align='left'><i>now</i></td></tr><tr><td align='left'><b>limit</b></td><td align='left'>1 – 10000</td><td align='left'><i>1000</i></td></tr><tr><td align='left'><b>sort</b></td><td align='left'>asc | desc</td><td align='left'><i>asc</i></td></tr><tr><td align='left'><b>adjustment</b></td><td align='left'>raw | split | dividend | spin-off | all</td><td align='left'><i>raw</i></td></tr><tr><td align='left'><b>asof</b></td><td align='left'>YYYY-MM-DD</td><td align='left'><i>today</i></td></tr><tr><td align='left'><b>currency</b></td><td align='left'>ISO 4217</td><td align='left'><i>USD</i></td></tr><tr><td align='left'><b>page_token</b></td><td align='left'>next_page_token</td><td align='left'><i>—</i></td></tr></table></small>"]
@@ -224,8 +224,8 @@ flowchart TB
     alpaca -->|"REST /v2/clock"| clock
     rest <-->|"REST /api/*"| browser
     candleHub -.->|"calls<br/>gap before this candle?"| detector
-    ingestionApi -->|"getMarketStatus()<br/>getTrackedSymbols()"| rest
-    ingestionApi -->|"getTrackedSymbols()<br/>getMarketStatus()"| detector
+    ingestionApi -->|"getMarketStatus()<br/>getTrackedStocks()"| rest
+    ingestionApi -->|"getTrackedStocks()<br/>getMarketStatus()"| detector
     candleRepo -.->|"calls<br/>save: ZADD + trim to 60<br/>read: ZRANGE"| redisCandles
     clock -->|"clock response"| ingestionApi
     stockRepo -->|"subscribe / unsubscribe"| streamClient
@@ -299,7 +299,7 @@ flowchart TB
   periodic safety-net refresh.
 - `StockRepository` loads the symbols from PostgreSQL at startup and keeps
   the list in memory. `AlpacaStreamClient` subscribes to them; other modules
-  read them through `getTrackedSymbols()`.
+  read them, with their company names, through `getTrackedStocks()`.
 - `addSymbol(symbol)` and `removeSymbol(symbol)` change the tracked symbols at
   runtime:
   - `addSymbol` inserts the row into `Stock`, updates the in-memory list and
@@ -312,7 +312,7 @@ flowchart TB
   only component that decides which candles are missing. It compares the
   stored candles with the trading minutes (from `getMarketStatus()`) and
   hands every missing range to `CandleBackfiller`. It runs:
-  - at startup, for every symbol from `getTrackedSymbols()`;
+  - at startup, for every stock from `getTrackedStocks()`;
   - on each live candle from `LiveCandleStream` (a new candle more than one
     trading minute after the last stored one);
   - before each `getLastCandles(symbol, n)` read (fewer than n candles, or a
