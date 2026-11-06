@@ -8,7 +8,6 @@ services:
     ports:
       - "127.0.0.1:5432:5432" # to delete
     volumes:
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
