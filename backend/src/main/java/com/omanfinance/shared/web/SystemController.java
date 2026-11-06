@@ -1,4 +1,4 @@
-package com.omanfinance.api;
+package com.omanfinance.shared.web;
 
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
