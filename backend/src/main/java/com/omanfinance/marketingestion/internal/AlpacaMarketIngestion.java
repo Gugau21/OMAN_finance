@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 /**
- * The real {@link MarketIngestion}, backed by Alpaca and the {@code Stock} table. Active under
+ * The real {@link MarketIngestion}, backed by Alpaca and the {@code stock} table. Active under
  * every profile except {@code fake}.
  *
  * <p>Skeleton: each method throws {@link UnsupportedOperationException} until the issue that
@@ -22,6 +22,21 @@ import reactor.core.publisher.Flux;
 @Component
 @Profile("!fake")
 public class AlpacaMarketIngestion implements MarketIngestion {
+
+  private final List<Stock> trackedStocks;
+
+  /**
+   * Reads the tracked stocks from the {@code stock} table once, so {@link #getTrackedStocks} never
+   * queries the database.
+   *
+   * @throws IllegalStateException when the table is empty, so the application does not start
+   */
+  AlpacaMarketIngestion(StockRepository stocks) {
+    this.trackedStocks = stocks.findAllByOrderByIdAsc().stream().map(StockEntity::toStock).toList();
+    if (trackedStocks.isEmpty()) {
+      throw new IllegalStateException("The stock table is empty: no stocks to track");
+    }
+  }
 
   /** Not implemented yet: comes with A7 (live bars from the Alpaca WebSocket). */
   @Override
@@ -47,10 +62,10 @@ public class AlpacaMarketIngestion implements MarketIngestion {
     throw notYet("streamMarketStatus", "A4");
   }
 
-  /** Not implemented yet: comes with A2 (loaded once from the {@code Stock} table). */
+  /** The stocks read from the {@code stock} table at startup, ordered by {@code id}. */
   @Override
   public List<Stock> getTrackedStocks() {
-    throw notYet("getTrackedStocks", "A2");
+    return trackedStocks;
   }
 
   @Override
