@@ -15,15 +15,16 @@ import reactor.core.publisher.Flux;
  * The real {@link MarketIngestion}, backed by Alpaca and the {@code stock} table. Active under
  * every profile except {@code fake}.
  *
- * <p>Skeleton: each method throws {@link UnsupportedOperationException} until the issue that
- * implements it lands. All of them ship together in PR 2 (A2–A5), so this class never reaches
- * {@code main} half-done.
+ * <p>Methods that are not implemented yet throw {@link UnsupportedOperationException} until the
+ * issue that implements them lands. All of them ship together in PR 2 (A2–A5), so this class never
+ * reaches {@code main} half-done.
  */
 @Component
 @Profile("!fake")
 public class AlpacaMarketIngestion implements MarketIngestion {
 
   private final List<Stock> trackedStocks;
+  private final AlpacaBarsClient barsClient;
 
   /**
    * Reads the tracked stocks from the {@code stock} table once, so {@link #getTrackedStocks} never
@@ -31,11 +32,12 @@ public class AlpacaMarketIngestion implements MarketIngestion {
    *
    * @throws IllegalStateException when the table is empty, so the application does not start
    */
-  AlpacaMarketIngestion(StockRepository stocks) {
+  AlpacaMarketIngestion(StockRepository stocks, AlpacaBarsClient barsClient) {
     this.trackedStocks = stocks.findAllByOrderByIdAsc().stream().map(StockEntity::toStock).toList();
     if (trackedStocks.isEmpty()) {
       throw new IllegalStateException("The stock table is empty: no stocks to track");
     }
+    this.barsClient = barsClient;
   }
 
   /** Not implemented yet: comes with A7 (live bars from the Alpaca WebSocket). */
@@ -44,10 +46,13 @@ public class AlpacaMarketIngestion implements MarketIngestion {
     throw notYet("streamBars", "A7");
   }
 
-  /** Not implemented yet: comes with A3 (Alpaca REST client and Redis bar cache). */
+  /**
+   * Fetches every page of bars from Alpaca {@code GET /v2/stocks/bars}. The Redis bar cache comes
+   * later in A3.
+   */
   @Override
   public BarsResponse getBars(BarsRequest request) {
-    throw notYet("getBars", "A3");
+    return barsClient.fetchAll(request);
   }
 
   /** Not implemented yet: comes with A4 ({@code MarketClock}). */

@@ -8,8 +8,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.omanfinance.marketingestion.api.MarketIngestion;
+import com.omanfinance.marketingestion.api.dto.BarsRequest;
+import com.omanfinance.marketingestion.api.dto.BarsResponse;
 import com.omanfinance.marketingestion.api.dto.Stock;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -18,7 +22,10 @@ class AlpacaMarketIngestionTest {
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
           .withBean(StockRepository.class, AlpacaMarketIngestionTest::repositoryWithOneStock)
+          .withBean(AlpacaBarsClient.class, () -> mock(AlpacaBarsClient.class))
           .withUserConfiguration(AlpacaMarketIngestion.class, FakeMarketIngestion.class);
+
+  private final AlpacaBarsClient barsClient = mock(AlpacaBarsClient.class);
 
   @Test
   void isTheOnlyMarketIngestionWithoutTheFakeProfile() {
@@ -56,7 +63,7 @@ class AlpacaMarketIngestionTest {
                 new StockEntity("AAPL", "Apple Inc."),
                 new StockEntity("MSFT", "Microsoft Corporation")));
 
-    AlpacaMarketIngestion ingestion = new AlpacaMarketIngestion(repository);
+    AlpacaMarketIngestion ingestion = new AlpacaMarketIngestion(repository, barsClient);
 
     assertThat(ingestion.getTrackedStocks())
         .containsExactly(
@@ -66,7 +73,7 @@ class AlpacaMarketIngestionTest {
   @Test
   void readsTheTableOnlyOnce() {
     StockRepository repository = repositoryWithOneStock();
-    AlpacaMarketIngestion ingestion = new AlpacaMarketIngestion(repository);
+    AlpacaMarketIngestion ingestion = new AlpacaMarketIngestion(repository, barsClient);
 
     ingestion.getTrackedStocks();
     ingestion.getTrackedStocks();
@@ -76,7 +83,8 @@ class AlpacaMarketIngestionTest {
 
   @Test
   void trackedStocksAreUnmodifiable() {
-    AlpacaMarketIngestion ingestion = new AlpacaMarketIngestion(repositoryWithOneStock());
+    AlpacaMarketIngestion ingestion =
+        new AlpacaMarketIngestion(repositoryWithOneStock(), barsClient);
 
     assertThatThrownBy(() -> ingestion.getTrackedStocks().add(new Stock("KO", "Coca-Cola")))
         .isInstanceOf(UnsupportedOperationException.class);
@@ -87,9 +95,26 @@ class AlpacaMarketIngestionTest {
     StockRepository repository = mock(StockRepository.class);
     when(repository.findAllByOrderByIdAsc()).thenReturn(List.of());
 
-    assertThatThrownBy(() -> new AlpacaMarketIngestion(repository))
+    assertThatThrownBy(() -> new AlpacaMarketIngestion(repository, barsClient))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("empty");
+  }
+
+  @Test
+  void getsBarsFromAlpacaWithEveryPageMerged() {
+    BarsRequest request =
+        BarsRequest.of(
+            List.of("AAPL"),
+            BarsRequest.ONE_MINUTE,
+            Instant.parse("2026-11-05T14:30:00Z"),
+            Instant.parse("2026-11-05T14:35:00Z"));
+    BarsResponse merged = new BarsResponse(Map.of("AAPL", List.of()), null);
+    when(barsClient.fetchAll(request)).thenReturn(merged);
+    AlpacaMarketIngestion ingestion =
+        new AlpacaMarketIngestion(repositoryWithOneStock(), barsClient);
+
+    assertThat(ingestion.getBars(request)).isSameAs(merged);
+    verify(barsClient).fetchAll(request);
   }
 
   private static StockRepository repositoryWithOneStock() {
