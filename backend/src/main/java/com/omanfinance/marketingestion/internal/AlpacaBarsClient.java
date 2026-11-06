@@ -1,8 +1,11 @@
 package com.omanfinance.marketingestion.internal;
 
+import com.omanfinance.marketingestion.api.dto.Bar;
 import com.omanfinance.marketingestion.api.dto.BarsRequest;
 import com.omanfinance.marketingestion.api.dto.BarsResponse;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -44,6 +47,31 @@ class AlpacaBarsClient {
             })
         .retrieve()
         .body(BarsResponse.class);
+  }
+
+  /**
+   * Fetches every page of bars that {@code request} describes, following {@code next_page_token}
+   * until Alpaca has no more pages, and returns them merged in one response with a null {@code
+   * nextPageToken}.
+   *
+   * <p>Alpaca's {@code limit} counts bars across all symbols, so one symbol's bars can be split
+   * across two pages; they are appended in the order the pages arrive.
+   */
+  BarsResponse fetchAll(BarsRequest request) {
+    Map<String, List<Bar>> merged = new LinkedHashMap<>();
+    BarsResponse page = fetchPage(request);
+    appendTo(merged, page);
+    while (page.hasNextPage()) {
+      page = fetchPage(request.withPageToken(page.nextPageToken()));
+      appendTo(merged, page);
+    }
+    return new BarsResponse(merged, null);
+  }
+
+  private static void appendTo(Map<String, List<Bar>> merged, BarsResponse page) {
+    page.bars()
+        .forEach(
+            (symbol, bars) -> merged.computeIfAbsent(symbol, s -> new ArrayList<>()).addAll(bars));
   }
 
   /** The query parameters for {@code request}, leaving out the optional ones that are null. */

@@ -1,6 +1,7 @@
 package com.omanfinance.marketingestion.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -166,6 +167,96 @@ class AlpacaBarsClientTest {
     assertThat(response.nextPageToken())
         .isEqualTo("TVNGVHxNfDIwMjYtMTEtMDVUMTQ6MzE6MDAuMDAwMDAwMDAwWg==");
     server.verify();
+  }
+
+  @Test
+  void followsNextPageTokenAndAppendsBarsSplitAcrossPages() {
+    // limit=3 counts bars across both symbols: AAPL's 4 bars span pages 1-2, MSFT's 3 pages 2-3.
+    server
+        .expect(request -> assertThat(decodedQuery(request)).doesNotContainKey("page_token"))
+        .andRespond(
+            withSuccess(
+                """
+                {"bars": {"AAPL": [{"t": "2026-11-05T14:30:00Z"},
+                                   {"t": "2026-11-05T14:31:00Z"},
+                                   {"t": "2026-11-05T14:32:00Z"}]},
+                 "next_page_token": "page-2"}
+                """,
+                MediaType.APPLICATION_JSON));
+    server
+        .expect(
+            request ->
+                assertThat(decodedQuery(request))
+                    .containsEntry("page_token", "page-2")
+                    .containsEntry("symbols", "AAPL,MSFT")
+                    .containsEntry("start", "2026-11-05T14:30:00Z")
+                    .containsEntry("limit", "3"))
+        .andRespond(
+            withSuccess(
+                """
+                {"bars": {"AAPL": [{"t": "2026-11-05T14:33:00Z"}],
+                          "MSFT": [{"t": "2026-11-05T14:30:00Z"}, {"t": "2026-11-05T14:31:00Z"}]},
+                 "next_page_token": "page-3"}
+                """,
+                MediaType.APPLICATION_JSON));
+    server
+        .expect(request -> assertThat(decodedQuery(request)).containsEntry("page_token", "page-3"))
+        .andRespond(
+            withSuccess(
+                """
+                {"bars": {"MSFT": [{"t": "2026-11-05T14:32:00Z"}]}, "next_page_token": null}
+                """,
+                MediaType.APPLICATION_JSON));
+
+    BarsResponse response =
+        client.fetchAll(
+            new BarsRequest(
+                List.of("AAPL", "MSFT"),
+                BarsRequest.ONE_MINUTE,
+                START,
+                END,
+                3,
+                null,
+                null,
+                null,
+                null,
+                null));
+
+    server.verify();
+    assertThat(response.bars()).containsOnlyKeys("AAPL", "MSFT");
+    assertThat(response.barsFor("AAPL"))
+        .extracting(Bar::symbol, Bar::timestamp)
+        .containsExactly(
+            tuple("AAPL", Instant.parse("2026-11-05T14:30:00Z")),
+            tuple("AAPL", Instant.parse("2026-11-05T14:31:00Z")),
+            tuple("AAPL", Instant.parse("2026-11-05T14:32:00Z")),
+            tuple("AAPL", Instant.parse("2026-11-05T14:33:00Z")));
+    assertThat(response.barsFor("MSFT"))
+        .extracting(Bar::symbol, Bar::timestamp)
+        .containsExactly(
+            tuple("MSFT", Instant.parse("2026-11-05T14:30:00Z")),
+            tuple("MSFT", Instant.parse("2026-11-05T14:31:00Z")),
+            tuple("MSFT", Instant.parse("2026-11-05T14:32:00Z")));
+    assertThat(response.nextPageToken()).isNull();
+  }
+
+  @Test
+  void makesOneRequestWhenAlpacaReturnsNoNextPageToken() {
+    server
+        .expect(requestTo(startsWith(BASE_URL + AlpacaBarsClient.BARS_PATH)))
+        .andRespond(
+            withSuccess(
+                """
+                {"bars": {"AAPL": [{"t": "2026-11-05T14:30:00Z"}]}, "next_page_token": null}
+                """,
+                MediaType.APPLICATION_JSON));
+
+    BarsResponse response =
+        client.fetchAll(BarsRequest.of(List.of("AAPL"), BarsRequest.ONE_MINUTE, START, END));
+
+    server.verify();
+    assertThat(response.barsFor("AAPL")).hasSize(1);
+    assertThat(response.nextPageToken()).isNull();
   }
 
   /** The query of {@code request} with every value decoded, as Alpaca reads it. */
