@@ -59,8 +59,11 @@ public record BarsRequest(
     return new BarsRequest(symbols, timeframe, start, end, null, null, null, null, null, null);
   }
 
-  /** Returns a copy that asks for the page after the one that returned {@code token}. */
-  BarsRequest withPageToken(String token) {
+  /**
+   * Returns a copy that asks for the page after the one that returned {@code token}, every other
+   * field unchanged. A null {@code token} asks for the first page again.
+   */
+  public BarsRequest withPageToken(String token) {
     return new BarsRequest(
         symbols, timeframe, start, end, limit, sort, adjustment, asof, currency, token);
   }

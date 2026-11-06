@@ -35,8 +35,11 @@ public record BarsResponse(
     return bars.getOrDefault(symbol, List.of());
   }
 
-  /** Whether Alpaca has another page for the same request. */
-  boolean hasNextPage() {
+  /**
+   * Whether Alpaca has another page for the same request, that is whether {@code nextPageToken} is
+   * neither null nor empty.
+   */
+  public boolean hasNextPage() {
     return nextPageToken != null && !nextPageToken.isEmpty();
   }
 }
