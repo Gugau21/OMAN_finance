@@ -22,10 +22,10 @@ class AlpacaMarketIngestionTest {
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
           .withBean(StockRepository.class, AlpacaMarketIngestionTest::repositoryWithOneStock)
-          .withBean(AlpacaBarsClient.class, () -> mock(AlpacaBarsClient.class))
+          .withBean(CachingBarsClient.class, () -> mock(CachingBarsClient.class))
           .withUserConfiguration(AlpacaMarketIngestion.class, FakeMarketIngestion.class);
 
-  private final AlpacaBarsClient barsClient = mock(AlpacaBarsClient.class);
+  private final CachingBarsClient barsClient = mock(CachingBarsClient.class);
 
   @Test
   void isTheOnlyMarketIngestionWithoutTheFakeProfile() {
@@ -101,7 +101,7 @@ class AlpacaMarketIngestionTest {
   }
 
   @Test
-  void getsBarsFromAlpacaWithEveryPageMerged() {
+  void getsBarsThroughTheCachingClient() {
     BarsRequest request =
         BarsRequest.of(
             List.of("AAPL"),
@@ -109,12 +109,12 @@ class AlpacaMarketIngestionTest {
             Instant.parse("2026-11-05T14:30:00Z"),
             Instant.parse("2026-11-05T14:35:00Z"));
     BarsResponse merged = new BarsResponse(Map.of("AAPL", List.of()), null);
-    when(barsClient.fetchAll(request)).thenReturn(merged);
+    when(barsClient.getBars(request)).thenReturn(merged);
     AlpacaMarketIngestion ingestion =
         new AlpacaMarketIngestion(repositoryWithOneStock(), barsClient);
 
     assertThat(ingestion.getBars(request)).isSameAs(merged);
-    verify(barsClient).fetchAll(request);
+    verify(barsClient).getBars(request);
   }
 
   private static StockRepository repositoryWithOneStock() {

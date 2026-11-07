@@ -8,11 +8,8 @@ import com.omanfinance.marketingestion.api.dto.Bar;
 import com.omanfinance.marketingestion.api.dto.BarsResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,8 +19,6 @@ import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.data.redis.DataRedisTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -34,7 +29,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  * backend. The time comes from a {@link TestClock} that each test can move.
  */
 @DataRedisTest
-@Import({BarRedisRepository.class, BarRedisRepositoryTest.TestClockConfig.class})
+@Import({BarRedisRepository.class, TestClock.Config.class})
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @EnableConfigurationProperties(AlpacaProperties.class)
 class BarRedisRepositoryTest {
@@ -260,39 +255,5 @@ class BarRedisRepositoryTest {
   private static Bar bar(Instant t, String close) {
     BigDecimal price = new BigDecimal(close);
     return new Bar(SYMBOL, t, price, price, price, price, 100, 1, price);
-  }
-
-  /** A clock that stays where a test puts it. */
-  static final class TestClock extends Clock {
-
-    private Instant now = Instant.EPOCH;
-
-    void set(Instant now) {
-      this.now = now;
-    }
-
-    @Override
-    public Instant instant() {
-      return now;
-    }
-
-    @Override
-    public ZoneId getZone() {
-      return ZoneOffset.UTC;
-    }
-
-    @Override
-    public Clock withZone(ZoneId zone) {
-      throw new UnsupportedOperationException("TestClock is always UTC");
-    }
-  }
-
-  @TestConfiguration
-  static class TestClockConfig {
-
-    @Bean
-    TestClock testClock() {
-      return new TestClock();
-    }
   }
 }

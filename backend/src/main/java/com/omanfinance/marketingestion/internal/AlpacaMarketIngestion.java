@@ -24,7 +24,7 @@ import reactor.core.publisher.Flux;
 public class AlpacaMarketIngestion implements MarketIngestion {
 
   private final List<Stock> trackedStocks;
-  private final AlpacaBarsClient barsClient;
+  private final CachingBarsClient barsClient;
 
   /**
    * Reads the tracked stocks from the {@code stock} table once, so {@link #getTrackedStocks} never
@@ -32,7 +32,7 @@ public class AlpacaMarketIngestion implements MarketIngestion {
    *
    * @throws IllegalStateException when the table is empty, so the application does not start
    */
-  AlpacaMarketIngestion(StockRepository stocks, AlpacaBarsClient barsClient) {
+  AlpacaMarketIngestion(StockRepository stocks, CachingBarsClient barsClient) {
     this.trackedStocks = stocks.findAllByOrderByIdAsc().stream().map(StockEntity::toStock).toList();
     if (trackedStocks.isEmpty()) {
       throw new IllegalStateException("The stock table is empty: no stocks to track");
@@ -47,12 +47,12 @@ public class AlpacaMarketIngestion implements MarketIngestion {
   }
 
   /**
-   * Fetches every page of bars from Alpaca {@code GET /v2/stocks/bars}. The Redis bar cache comes
-   * later in A3.
+   * Every page of bars from Alpaca {@code GET /v2/stocks/bars}, or the same bars from the Redis bar
+   * cache when it holds every requested minute (see {@link CachingBarsClient}).
    */
   @Override
   public BarsResponse getBars(BarsRequest request) {
-    return barsClient.fetchAll(request);
+    return barsClient.getBars(request);
   }
 
   /** Not implemented yet: comes with A4 ({@code MarketClock}). */
