@@ -8,8 +8,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -113,26 +115,42 @@ class BarRedisRepository {
 
   /** One entry per whole minute in {@code [from, to]}: its bar, or a {@code none} entry. */
   private Set<TypedTuple<String>> entriesFor(List<Bar> bars, Instant from, Instant to) {
-    Set<Instant> minutesWithBar = new LinkedHashSet<>();
-    Set<TypedTuple<String>> entries = new LinkedHashSet<>();
+    Map<Instant, Bar> barByMinute = new HashMap<>();
     for (Bar bar : bars) {
-      Instant t = bar.timestamp();
-      if (t.isBefore(from) || t.isAfter(to)) {
-        throw new IllegalArgumentException(
-            "bar at " + t + " is outside the saved range [" + from + ", " + to + "]");
+      checkBar(bar, from, to);
+      if (barByMinute.put(bar.timestamp(), bar) != null) {
+        throw new IllegalArgumentException("two bars for the minute " + bar.timestamp());
       }
-      if (!t.equals(t.truncatedTo(ChronoUnit.MINUTES))) {
-        throw new IllegalArgumentException("bar at " + t + " is not on a whole minute");
-      }
-      minutesWithBar.add(t);
-      entries.add(TypedTuple.of(toJson(bar), scoreOf(t)));
     }
+
+    Set<TypedTuple<String>> entries = new LinkedHashSet<>();
     for (Instant minute : minutesIn(from, to)) {
-      if (!minutesWithBar.contains(minute)) {
-        entries.add(TypedTuple.of(NO_BAR_PREFIX + minute.toEpochMilli(), scoreOf(minute)));
-      }
+      Bar bar = barByMinute.get(minute);
+      entries.add(bar != null ? barEntry(bar) : noBarEntry(minute));
     }
     return entries;
+  }
+
+  /** Throws when {@code bar} is outside {@code [from, to]} or not on a whole minute. */
+  private static void checkBar(Bar bar, Instant from, Instant to) {
+    Instant t = bar.timestamp();
+    if (t.isBefore(from) || t.isAfter(to)) {
+      throw new IllegalArgumentException(
+          "bar at " + t + " is outside the saved range [" + from + ", " + to + "]");
+    }
+    if (!t.equals(t.truncatedTo(ChronoUnit.MINUTES))) {
+      throw new IllegalArgumentException("bar at " + t + " is not on a whole minute");
+    }
+  }
+
+  /** The entry of a minute that has a bar: the bar as JSON. */
+  private TypedTuple<String> barEntry(Bar bar) {
+    return TypedTuple.of(toJson(bar), scoreOf(bar.timestamp()));
+  }
+
+  /** The entry of a fetched minute that has no bar: {@code none:{epoch ms}}. */
+  private static TypedTuple<String> noBarEntry(Instant minute) {
+    return TypedTuple.of(NO_BAR_PREFIX + minute.toEpochMilli(), scoreOf(minute));
   }
 
   /** Deletes the entries before {@code cutoff}; an entry exactly at {@code cutoff} stays. */

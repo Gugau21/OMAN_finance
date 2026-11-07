@@ -201,6 +201,13 @@ class BarRedisRepositoryTest {
   }
 
   @Test
+  void rejectsTwoBarsForTheSameMinute() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> repository.save(SYMBOL, List.of(bar(T0, "1"), bar(T0, "2")), T0, T1));
+    assertThat(redis.hasKey(KEY)).isFalse();
+  }
+
+  @Test
   void rejectsARangeThatEndsBeforeItStarts() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> repository.save(SYMBOL, List.of(), T1, T0));
