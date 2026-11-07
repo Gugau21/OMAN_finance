@@ -148,7 +148,9 @@ headers.
   stocks.
 - Redis has no volume in the Compose definition. Its cache is therefore
   container-lifetime state and can be lost when the Redis container is
-  recreated.
+  recreated. Losing it is safe: cached bars are fetched from Alpaca again.
+  Bars older than `alpaca.bar-cache-retention` (7 days by default) are
+  deleted automatically.
 - Database credentials, datasource settings, Redis settings, CORS origins, and
   frontend API settings are supplied through environment substitution, normally
   from `.env`. Secrets should not be committed to the repository.
@@ -163,6 +165,10 @@ migration; a migration that has already been applied is never edited.
 - Redis has a `redis-cli ping` health check.
 - The backend waits for PostgreSQL to become healthy before Compose starts it.
 - The backend does not currently declare a Compose health dependency on Redis.
+  It does not need Redis to start or to serve bars: while Redis is down,
+  historical bars come straight from Alpaca. The Redis connect and command
+  timeouts are 1 s (`SPRING_DATA_REDIS_CONNECT_TIMEOUT`,
+  `SPRING_DATA_REDIS_TIMEOUT`).
 - Nginx has no Compose health check or explicit dependency on the backend in the
   production profile. The `/actuator/health` route is available for external
   monitoring through Nginx.
