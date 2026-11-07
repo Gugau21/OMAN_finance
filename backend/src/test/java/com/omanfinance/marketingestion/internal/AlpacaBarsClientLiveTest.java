@@ -47,7 +47,8 @@ class AlpacaBarsClientLiveTest {
                     System.getenv("ALPACA_DATA_BASE_URL"), "https://data.alpaca.markets")),
             URI.create("wss://stream.data.alpaca.markets/v2/iex"),
             Duration.ofSeconds(5),
-            Duration.ofSeconds(10));
+            Duration.ofSeconds(10),
+            Duration.ofDays(7));
     client =
         new AlpacaBarsClient(
             new AlpacaRestClientConfig().alpacaDataRestClient(RestClient.builder(), properties));

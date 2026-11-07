@@ -76,7 +76,8 @@ class AlpacaRestClientConfigTest {
             baseUrl,
             URI.create("ws://stream.invalid"),
             Duration.ofSeconds(1),
-            readTimeout);
+            readTimeout,
+            Duration.ofDays(7));
     return new AlpacaRestClientConfig().alpacaDataRestClient(RestClient.builder(), properties);
   }
 

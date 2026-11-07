@@ -8,7 +8,11 @@ import com.omanfinance.marketingestion.api.dto.Bar;
 import com.omanfinance.marketingestion.api.dto.BarsResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,35 +20,55 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.data.redis.DataRedisTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * Runs against the real Redis that {@code spring.data.redis.*} points at. Only touches the key of
- * {@link #SYMBOL}, so it does not disturb bars cached by a running backend.
+ * Runs against the real Redis that {@code spring.data.redis.*} points at. Only touches the keys of
+ * {@link #SYMBOL} and {@link #OTHER_SYMBOL}, so it does not disturb bars cached by a running
+ * backend. The time comes from a {@link TestClock} that each test can move.
  */
 @DataRedisTest
-@Import(BarRedisRepository.class)
+@Import({BarRedisRepository.class, BarRedisRepositoryTest.TestClockConfig.class})
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
+@EnableConfigurationProperties(AlpacaProperties.class)
 class BarRedisRepositoryTest {
 
   private static final String SYMBOL = "TEST_BARS";
+  private static final String OTHER_SYMBOL = "TEST_BARS_OTHER";
   private static final String KEY = BarRedisRepository.keyOf(SYMBOL);
+  private static final String OTHER_KEY = BarRedisRepository.keyOf(OTHER_SYMBOL);
   private static final Instant T0 = Instant.parse("2026-11-05T14:30:00Z");
   private static final Instant T1 = T0.plusSeconds(60);
   private static final Instant T2 = T0.plusSeconds(120);
   private static final Instant T3 = T0.plusSeconds(180);
 
+  /** A minute after T3: recent enough that nothing above is older than the retention. */
+  private static final Instant NOW = T3.plusSeconds(60);
+
   @Autowired private BarRedisRepository repository;
   @Autowired private StringRedisTemplate redis;
   @Autowired private ObjectMapper json;
+  @Autowired private TestClock clock;
+  @Autowired private AlpacaProperties properties;
+
+  private Duration retention;
 
   @BeforeEach
+  void setUp() {
+    deleteTestKeys();
+    clock.set(NOW);
+    retention = properties.barCacheRetention();
+  }
+
   @AfterEach
-  void deleteTestKey() {
-    redis.delete(KEY);
+  void deleteTestKeys() {
+    redis.delete(List.of(KEY, OTHER_KEY));
   }
 
   @Test
@@ -184,8 +208,84 @@ class BarRedisRepositoryTest {
         .isThrownBy(() -> repository.readIfComplete(SYMBOL, T1, T0));
   }
 
+  @Test
+  void deletesEntriesOlderThanTheRetentionOnTheNextSave() {
+    repository.save(SYMBOL, List.of(bar(T0, "1")), T0, T1);
+
+    clock.set(T3.plus(retention));
+    repository.save(SYMBOL, List.of(bar(T3, "4")), T3, T3);
+
+    assertThat(repository.readIfComplete(SYMBOL, T0, T1)).isEmpty();
+    assertThat(repository.readIfComplete(SYMBOL, T3, T3)).contains(List.of(bar(T3, "4")));
+    assertThat(redis.opsForZSet().zCard(KEY)).isEqualTo(1);
+  }
+
+  @Test
+  void keepsAnEntryExactlyAtTheCutoff() {
+    repository.save(SYMBOL, List.of(bar(T1, "2")), T0, T1);
+
+    clock.set(T1.plus(retention));
+    repository.save(SYMBOL, List.of(), T3, T3);
+
+    assertThat(repository.readIfComplete(SYMBOL, T1, T1)).contains(List.of(bar(T1, "2")));
+    assertThat(repository.readIfComplete(SYMBOL, T0, T1)).isEmpty();
+  }
+
+  @Test
+  void doesNotKeepARangeOlderThanTheRetention() {
+    clock.set(T3.plus(retention));
+
+    repository.save(SYMBOL, List.of(bar(T0, "1")), T0, T1);
+
+    assertThat(redis.hasKey(KEY)).isFalse();
+  }
+
+  @Test
+  void deletesOldEntriesOnlyForTheSymbolBeingSaved() {
+    repository.save(OTHER_SYMBOL, List.of(bar(T0, "1")), T0, T0);
+
+    clock.set(T3.plus(retention));
+    repository.save(SYMBOL, List.of(), T3, T3);
+
+    assertThat(repository.readIfComplete(OTHER_SYMBOL, T0, T0)).contains(List.of(bar(T0, "1")));
+  }
+
   private static Bar bar(Instant t, String close) {
     BigDecimal price = new BigDecimal(close);
     return new Bar(SYMBOL, t, price, price, price, price, 100, 1, price);
+  }
+
+  /** A clock that stays where a test puts it. */
+  static final class TestClock extends Clock {
+
+    private Instant now = Instant.EPOCH;
+
+    void set(Instant now) {
+      this.now = now;
+    }
+
+    @Override
+    public Instant instant() {
+      return now;
+    }
+
+    @Override
+    public ZoneId getZone() {
+      return ZoneOffset.UTC;
+    }
+
+    @Override
+    public Clock withZone(ZoneId zone) {
+      throw new UnsupportedOperationException("TestClock is always UTC");
+    }
+  }
+
+  @TestConfiguration
+  static class TestClockConfig {
+
+    @Bean
+    TestClock testClock() {
+      return new TestClock();
+    }
   }
 }

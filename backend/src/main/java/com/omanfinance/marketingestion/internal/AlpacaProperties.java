@@ -10,6 +10,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>{@code connectTimeout} and {@code readTimeout} apply to every REST call to Alpaca. A call that
  * runs past either fails instead of blocking the caller.
+ *
+ * <p>{@code barCacheRetention} is how long bars fetched from Alpaca stay cached in Redis.
  */
 @ConfigurationProperties("alpaca")
 public record AlpacaProperties(
@@ -19,13 +21,21 @@ public record AlpacaProperties(
     URI dataBaseUrl,
     URI streamUrl,
     Duration connectTimeout,
-    Duration readTimeout) {
+    Duration readTimeout,
+    Duration barCacheRetention) {
 
   /** Keeps the secret key out of logs. */
   @Override
   public String toString() {
     return ("AlpacaProperties[apiKeyId=%s, apiSecretKey=***, tradingBaseUrl=%s, dataBaseUrl=%s,"
-            + " streamUrl=%s, connectTimeout=%s, readTimeout=%s]")
-        .formatted(apiKeyId, tradingBaseUrl, dataBaseUrl, streamUrl, connectTimeout, readTimeout);
+            + " streamUrl=%s, connectTimeout=%s, readTimeout=%s, barCacheRetention=%s]")
+        .formatted(
+            apiKeyId,
+            tradingBaseUrl,
+            dataBaseUrl,
+            streamUrl,
+            connectTimeout,
+            readTimeout,
+            barCacheRetention);
   }
 }

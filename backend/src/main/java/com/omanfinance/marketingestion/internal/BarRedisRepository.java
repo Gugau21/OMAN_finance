@@ -3,6 +3,7 @@ package com.omanfinance.marketingestion.internal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omanfinance.marketingestion.api.dto.Bar;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -33,6 +34,9 @@ import org.springframework.stereotype.Component;
  * <p>So a minute with no entry was never fetched, and a range is fully cached when it has as many
  * entries as minutes. Without the {@code none} entries, a minute with no trades and a minute never
  * fetched would look the same.
+ *
+ * <p>Entries older than {@code alpaca.bar-cache-retention} are deleted on every save of the same
+ * symbol. A deleted minute counts as never fetched, so its range is fetched from Alpaca again.
  */
 @Component
 @Profile("!fake")
@@ -44,16 +48,24 @@ class BarRedisRepository {
 
   private final StringRedisTemplate redis;
   private final ObjectMapper json;
+  private final Duration retention;
+  private final Clock clock;
 
-  BarRedisRepository(StringRedisTemplate redis, ObjectMapper json) {
+  BarRedisRepository(
+      StringRedisTemplate redis, ObjectMapper json, AlpacaProperties properties, Clock clock) {
     this.redis = redis;
     this.json = json;
+    this.retention = properties.barCacheRetention();
+    this.clock = clock;
   }
 
   /**
    * Saves {@code bars} as everything Alpaca has for {@code symbol} in {@code [from, to]}: every
    * minute in the range gets its bar, or a {@code none} entry when {@code bars} has no bar for it.
    * Whatever was stored in the range before is replaced, in one transaction.
+   *
+   * <p>The same transaction deletes the entries of {@code symbol} older than {@code
+   * alpaca.bar-cache-retention}, the new ones included, so a range older than that is never kept.
    *
    * <p>Save only minutes that are over: a minute saved before Alpaca has its bar is stored as a
    * minute with no trades.
@@ -65,6 +77,7 @@ class BarRedisRepository {
     checkRange(from, to);
     Set<TypedTuple<String>> entries = entriesFor(bars, from, to);
     String key = keyOf(symbol);
+    Instant cutoff = clock.instant().minus(retention);
 
     inTransaction(
         ops -> {
@@ -73,6 +86,7 @@ class BarRedisRepository {
           if (!entries.isEmpty()) {
             ops.opsForZSet().add(key, entries);
           }
+          deleteOlderThan(ops, key, cutoff);
         });
   }
 
@@ -119,6 +133,13 @@ class BarRedisRepository {
       }
     }
     return entries;
+  }
+
+  /** Deletes the entries before {@code cutoff}; an entry exactly at {@code cutoff} stays. */
+  private static void deleteOlderThan(
+      RedisOperations<String, String> ops, String key, Instant cutoff) {
+    // Scores are whole milliseconds, so up to cutoff - 1 ms leaves cutoff itself out.
+    ops.opsForZSet().removeRangeByScore(key, Double.NEGATIVE_INFINITY, scoreOf(cutoff) - 1);
   }
 
   /** The whole minutes in {@code [from, to]}, both ends included. */
