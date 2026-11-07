@@ -9,6 +9,9 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      # Short, so a Redis that is down costs getBars about a second before it falls back to Alpaca.
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:1s}
   cache:
     type: ${SPRING_CACHE_TYPE:redis}
   jpa:

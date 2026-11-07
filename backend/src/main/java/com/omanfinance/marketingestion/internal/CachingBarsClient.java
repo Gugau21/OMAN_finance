@@ -13,12 +13,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
 /**
  * Gets bars from the Redis bar cache when it holds every requested minute, otherwise from Alpaca,
  * and caches what Alpaca returns. Either way the caller gets the same bars Alpaca would send.
+ *
+ * <p>The cache only saves Alpaca calls: when Redis cannot be reached, bars come from Alpaca and a
+ * warning is logged.
  */
 @Component
 @Profile("!fake")
@@ -31,6 +37,7 @@ class CachingBarsClient {
   static final Duration SETTLE_TIME = Duration.ofMinutes(1);
 
   private static final Duration MINUTE = Duration.ofMinutes(1);
+  private static final Logger log = LoggerFactory.getLogger(CachingBarsClient.class);
 
   private final AlpacaBarsClient alpaca;
   private final BarRedisRepository cache;
@@ -47,13 +54,34 @@ class CachingBarsClient {
     if (!isCacheable(request)) {
       return alpaca.fetchAll(request);
     }
-    Optional<BarsResponse> cached = readFromCache(request);
+    Optional<BarsResponse> cached = readFromCacheOrEmpty(request);
     if (cached.isPresent()) {
       return cached.get();
     }
     BarsResponse fetched = alpaca.fetchAll(request);
-    saveToCache(request, fetched);
+    saveToCacheIfPossible(request, fetched);
     return fetched;
+  }
+
+  /**
+   * {@link #readFromCache}, or empty when Redis cannot be reached, so the bars come from Alpaca.
+   */
+  private Optional<BarsResponse> readFromCacheOrEmpty(BarsRequest request) {
+    try {
+      return readFromCache(request);
+    } catch (DataAccessException e) {
+      log.warn("Bar cache unavailable, getting bars from Alpaca: {}", e.getMessage());
+      return Optional.empty();
+    }
+  }
+
+  /** {@link #saveToCache}, skipped with a warning when Redis cannot be reached. */
+  private void saveToCacheIfPossible(BarsRequest request, BarsResponse fetched) {
+    try {
+      saveToCache(request, fetched);
+    } catch (DataAccessException e) {
+      log.warn("Bar cache unavailable, bars from Alpaca not cached: {}", e.getMessage());
+    }
   }
 
   /**
