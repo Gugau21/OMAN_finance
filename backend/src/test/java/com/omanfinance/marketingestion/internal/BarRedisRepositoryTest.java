@@ -22,7 +22,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * Runs against the real Redis that {@code spring.data.redis.*} points at. Only touches the key of
+ * Runs against the real Redis that {@code spring.data.redis.*} points at. Only touches the keys of
  * {@link #SYMBOL}, so it does not disturb bars cached by a running backend.
  */
 @DataRedisTest
@@ -34,6 +34,7 @@ class BarRedisRepositoryTest {
   private static final Instant T0 = Instant.parse("2026-11-05T14:30:00Z");
   private static final Instant T1 = T0.plusSeconds(60);
   private static final Instant T2 = T0.plusSeconds(120);
+  private static final Instant T3 = T0.plusSeconds(180);
 
   @Autowired private BarRedisRepository repository;
   @Autowired private StringRedisTemplate redis;
@@ -41,8 +42,8 @@ class BarRedisRepositoryTest {
 
   @BeforeEach
   @AfterEach
-  void deleteTestKey() {
-    redis.delete(BarRedisRepository.keyOf(SYMBOL));
+  void deleteTestKeys() {
+    redis.delete(List.of(BarRedisRepository.keyOf(SYMBOL), BarRedisRepository.spanKeyOf(SYMBOL)));
   }
 
   @Test
@@ -113,12 +114,79 @@ class BarRedisRepositoryTest {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> repository.save(SYMBOL, List.of(bar(T2, "3")), T0, T1));
     assertThat(redis.hasKey(BarRedisRepository.keyOf(SYMBOL))).isFalse();
+    assertThat(redis.hasKey(BarRedisRepository.spanKeyOf(SYMBOL))).isFalse();
   }
 
   @Test
   void rejectsARangeThatEndsBeforeItStarts() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> repository.save(SYMBOL, List.of(), T1, T0));
+  }
+
+  @Test
+  void coversNothingForASymbolThatWasNeverSaved() {
+    assertThat(repository.covers(SYMBOL, T0, T0)).isFalse();
+  }
+
+  @Test
+  void coversTheSavedRangeAndAnyPartOfIt() {
+    repository.save(SYMBOL, List.of(bar(T1, "2")), T0, T2);
+
+    assertThat(repository.covers(SYMBOL, T0, T2)).isTrue();
+    assertThat(repository.covers(SYMBOL, T1, T1)).isTrue();
+  }
+
+  @Test
+  void doesNotCoverARangeThatGoesPastTheSavedOne() {
+    repository.save(SYMBOL, List.of(bar(T1, "2")), T1, T2);
+
+    assertThat(repository.covers(SYMBOL, T0, T1)).isFalse();
+    assertThat(repository.covers(SYMBOL, T2, T3)).isFalse();
+  }
+
+  @Test
+  void coversARangeSavedWithNoBars() {
+    repository.save(SYMBOL, List.of(), T0, T1);
+
+    assertThat(repository.covers(SYMBOL, T0, T1)).isTrue();
+  }
+
+  @Test
+  void growsTheCoveredRangeWhenANewRangeOverlapsIt() {
+    repository.save(SYMBOL, List.of(), T0, T2);
+
+    repository.save(SYMBOL, List.of(), T1, T3);
+
+    assertThat(repository.covers(SYMBOL, T0, T3)).isTrue();
+  }
+
+  @Test
+  void growsTheCoveredRangeWhenANewRangeTouchesIt() {
+    repository.save(SYMBOL, List.of(), T0, T1);
+
+    repository.save(SYMBOL, List.of(), T1, T2);
+
+    assertThat(repository.covers(SYMBOL, T0, T2)).isTrue();
+  }
+
+  @Test
+  void keepsTheCoveredRangeWhenANewRangeIsInsideIt() {
+    repository.save(SYMBOL, List.of(), T0, T3);
+
+    repository.save(SYMBOL, List.of(), T1, T2);
+
+    assertThat(repository.covers(SYMBOL, T0, T3)).isTrue();
+  }
+
+  @Test
+  void replacesTheCoveredRangeWhenANewRangeIsSeparateFromIt() {
+    repository.save(SYMBOL, List.of(), T0, T0);
+
+    repository.save(SYMBOL, List.of(), T2, T3);
+
+    // T1 was never fetched, so the old range cannot be joined to the new one.
+    assertThat(repository.covers(SYMBOL, T2, T3)).isTrue();
+    assertThat(repository.covers(SYMBOL, T0, T0)).isFalse();
   }
 
   private static Bar bar(Instant t, String close) {
