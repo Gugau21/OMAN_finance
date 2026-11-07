@@ -45,6 +45,14 @@ jobs:
       - name: Run backend tests
         run: ./gradlew test
 
+      - name: Upload Test Report
+        if: always()
+        uses: actions/actions-artifact/upload-artifact@v4
+        with:
+          name: gradle-test-report-${{ github.ref_name }}
+          path: backend/build/reports/tests/test/
+          overwrite: true
+
       - name: Stop database and cache
         if: ${{ always() }}
         run: docker compose -f ../docker-compose.yml down -v
