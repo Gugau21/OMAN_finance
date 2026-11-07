@@ -9,10 +9,11 @@ import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class CandleRedisRepository {
+class CandleRedisRepository {
 
   private final StringRedisTemplate redis;
   private final ObjectMapper objectMapper;
@@ -22,26 +23,32 @@ public class CandleRedisRepository {
     this.objectMapper = objectMapper;
   }
 
-  public void saveCandle(String symbol, Candle candle) {
+  void saveCandles(String symbol, List<Candle> candles) {
     String key = "candles:" + symbol;
-    String member = toJson(candle);
-    double score = candle.timestamp().getEpochSecond();
 
     redis.execute(
         new SessionCallback<Object>() {
           @Override
-          @SuppressWarnings("unchecked")
-          public <K, V> Object execute(RedisOperations<K, V> ops) {
+          @SuppressWarnings({"unchecked", "null"})
+          public <K, V> Object execute(@NonNull RedisOperations<K, V> ops) {
             RedisOperations<String, String> redisOps = (RedisOperations<String, String>) ops;
             redisOps.multi();
-            redisOps.opsForZSet().add(key, member, score);
+            for (var candle : candles) {
+              String member = toJson(candle);
+              double score = candle.timestamp().getEpochSecond();
+              redisOps.opsForZSet().add(key, member, score);
+            }
             redisOps.opsForZSet().removeRange(key, 0, -61); // ZREMRANGEBYRANK 0 -61
             return redisOps.exec();
           }
         });
   }
 
-  public List<Candle> lastCandles(String symbol, int n) {
+  void saveCandle(String symbol, Candle candle) {
+    saveCandles(symbol, List.of(candle));
+  }
+
+  List<Candle> lastCandles(String symbol, int n) {
     ZSetOperations<String, String> set = redis.opsForZSet();
     String key = "candles:" + symbol;
 
