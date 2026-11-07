@@ -22,12 +22,16 @@ export function MainPage() {
   const [marketDate, setMarketDate] = useState<string>('');
   const [stocksData, setStocksData] = useState<CombinedStockData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadDashboardData() {
       try {
+        setIsLoading(true);
+        setError(null);
+
         const [status, stocks, stats, sparklines] = await Promise.all([
           getMarketStatus({ signal: controller.signal }),
           getStocks({ signal: controller.signal }),
@@ -64,12 +68,16 @@ export function MainPage() {
             };
           });
           setStocksData(combined);
+        } else {
+          setStocksData([]);
         }
-      } catch (error: unknown) {
-        if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Failed to fetch dashboard data:', error.message);
-        } else if (!(error instanceof Error)) {
-          console.error('Failed to fetch dashboard data:', error);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          console.error('Failed to fetch dashboard data:', err.message);
+          setError('We encountered an issue loading the market data. Please try again later.');
+        } else if (!(err instanceof Error)) {
+          console.error('Failed to fetch dashboard data:', err);
+          setError('An unexpected error occurred.');
         }
       } finally {
         setIsLoading(false);
@@ -94,34 +102,98 @@ export function MainPage() {
         <div className="flex flex-col items-end">
           <div className="flex flex-row items-center gap-1.5">
             <div
-              className={`w-1 h-1 rounded-full ${marketStatus?.isOpen ? 'bg-green-500' : 'bg-slate-500'}`}
+              className={`w-1 h-1 rounded-full ${
+                isLoading
+                  ? 'bg-gray-300 animate-pulse'
+                  : marketStatus?.isOpen
+                  ? 'bg-green-500'
+                  : 'bg-slate-500'
+              }`}
             ></div>
             <span className="text-[10px] font-bold text-gray-800 font-inter">
-              {marketStatus?.isOpen ? 'US markets open' : 'US markets closed'}
+              {isLoading
+                ? 'Loading status...'
+                : marketStatus?.isOpen
+                ? 'US markets open'
+                : 'US markets closed'}
             </span>
           </div>
-          <span className="text-[10px] text-gray-500 font-inter">{marketDate || 'Loading...'}</span>
+          <span className="text-[10px] text-gray-500 font-inter">
+            {isLoading ? (
+              <span className="inline-block w-24 h-3 bg-gray-200 rounded animate-pulse mt-1"></span>
+            ) : (
+              marketDate || 'Date unavailable'
+            )}
+          </span>
         </div>
       </div>
 
       <div className="w-full flex flex-col gap-2">
         <h2 className="text-xs font-bold text-gray-900">Explore stocks</h2>
 
-        {isLoading ? (
-          <div className="text-gray-500 py-2 text-xs">Loading market data...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200 text-gray-500 text-[10px] bg-gray-100">
-                  <th className="py-3 px-2 font-normal">Company</th>
-                  <th className="py-3 px-2 font-normal text-right">Price</th>
-                  <th className="py-3 px-2 font-normal text-right">Change</th>
-                  <th className="py-3 px-2 font-normal text-right">Change %</th>
-                  <th className="py-3 px-2 font-normal text-right">Volume</th>
-                  <th className="py-3 px-2 font-normal text-right">7-day trend</th>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-200 text-gray-500 text-[10px] bg-gray-100">
+                <th className="py-3 px-2 font-normal">Company</th>
+                <th className="py-3 px-2 font-normal text-right">Price</th>
+                <th className="py-3 px-2 font-normal text-right">Change</th>
+                <th className="py-3 px-2 font-normal text-right">Change %</th>
+                <th className="py-3 px-2 font-normal text-right">Volume</th>
+                <th className="py-3 px-2 font-normal text-right">7-day trend</th>
+              </tr>
+            </thead>
+            {/*Display loading skeletons when data is being fetched */}
+            {isLoading && (
+              <tbody className="text-xs">
+                {[1, 2, 3].map((item) => (
+                  <tr key={item} className="border-b border-gray-100">
+                    <td className="py-3 px-2">
+                      <div className="flex flex-col gap-1">
+                        <div className="w-10 h-4 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="w-20 h-3 bg-gray-100 rounded animate-pulse"></div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-2"><div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
+                    <td className="py-3 px-2"><div className="w-10 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
+                    <td className="py-3 px-2"><div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
+                    <td className="py-3 px-2"><div className="w-10 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
+                    <td className="py-3 px-2"><div className="w-16 h-8 bg-gray-100 rounded animate-pulse ml-auto"></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            )}
+
+            {/*Display error message when data fetch fails */}
+            {!isLoading && error && (
+              <tbody>
+                <tr>
+                  <td colSpan={6} className="py-8">
+                    <div className="flex flex-col items-center justify-center text-center bg-red-50 rounded-lg p-6 border border-red-100">
+                      <span className="text-red-500 font-bold text-xs mb-1">Data Fetch Failed</span>
+                      <span className="text-red-400 text-[10px]">{error}</span>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
+              </tbody>
+            )}
+
+            {/*Display message when no stocks are available */}
+            {!isLoading && !error && stocksData.length === 0 && (
+              <tbody>
+                <tr>
+                  <td colSpan={6} className="py-12">
+                    <div className="flex flex-col items-center justify-center text-center">
+                      <span className="text-gray-500 font-bold text-xs mb-1">No Stocks Available</span>
+                      <span className="text-gray-400 text-[10px]">The market data is currently empty.</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            )}
+
+            {/*Display stocks data when available */}
+            {!isLoading && !error && stocksData.length > 0 && (
               <tbody className="text-xs">
                 {stocksData.map((row) => {
                   const isPositive = row.change >= 0;
@@ -174,9 +246,9 @@ export function MainPage() {
                   );
                 })}
               </tbody>
-            </table>
-          </div>
-        )}
+            )}
+          </table>
+        </div>
       </div>
     </div>
   );
