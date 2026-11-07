@@ -3,15 +3,16 @@ package com.omanfinance.marketingestion.internal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omanfinance.marketingestion.api.dto.Bar;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
 import org.springframework.context.annotation.Profile;
-import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -19,26 +20,27 @@ import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.stereotype.Component;
 
 /**
- * Raw Alpaca bars in Redis. Each symbol has two keys:
+ * Raw Alpaca minute bars in Redis, one sorted set per symbol: {@code bars:{symbol}}, scored by
+ * minute in epoch milliseconds.
+ *
+ * <p>Every fetched minute has exactly one entry:
  *
  * <ul>
- *   <li>{@code bars:{symbol}}: a sorted set of bars as JSON, scored by their timestamp in epoch
- *       milliseconds;
- *   <li>{@code bars:{symbol}:span}: a hash with {@code from} and {@code to} in epoch milliseconds,
- *       the time range whose bars were all fetched from Alpaca.
+ *   <li>the bar as JSON, when Alpaca sent one;
+ *   <li>{@code none:{epoch ms}}, when Alpaca sent none because there were no trades.
  * </ul>
  *
- * <p>The span is needed because Alpaca leaves out minutes with no trades: from the bars alone, a
- * missing minute and a minute that was never fetched look the same.
+ * <p>So a minute with no entry was never fetched, and a range is fully cached when it has as many
+ * entries as minutes. Without the {@code none} entries, a minute with no trades and a minute never
+ * fetched would look the same.
  */
 @Component
 @Profile("!fake")
 class BarRedisRepository {
 
   static final String KEY_PREFIX = "bars:";
-  static final String SPAN_SUFFIX = ":span";
-  private static final String SPAN_FROM = "from";
-  private static final String SPAN_TO = "to";
+  static final String NO_BAR_PREFIX = "none:";
+  private static final Duration MINUTE = Duration.ofMinutes(1);
 
   private final StringRedisTemplate redis;
   private final ObjectMapper json;
@@ -49,108 +51,116 @@ class BarRedisRepository {
   }
 
   /**
-   * Saves {@code bars} as everything Alpaca has for {@code symbol} in {@code [from, to]}, in one
-   * transaction:
+   * Saves {@code bars} as everything Alpaca has for {@code symbol} in {@code [from, to]}: every
+   * minute in the range gets its bar, or a {@code none} entry when {@code bars} has no bar for it.
+   * Whatever was stored in the range before is replaced, in one transaction.
    *
-   * <ul>
-   *   <li>the bars already stored in {@code [from, to]} are replaced, so a bar fetched again does
-   *       not sit next to its old copy, and a minute Alpaca no longer returns disappears;
-   *   <li>the span grows to include {@code [from, to]} when the two overlap or touch, and is
-   *       replaced by {@code [from, to]} when they do not, because the gap between them was never
-   *       fetched.
-   * </ul>
+   * <p>Save only minutes that are over: a minute saved before Alpaca has its bar is stored as a
+   * minute with no trades.
    *
-   * <p>An empty {@code bars} still counts as fetched: Alpaca had no trades in that range.
-   *
-   * <p>Two saves of the same symbol at the same time can lose part of the span, so a later request
-   * fetches that part again; neither can make the span cover a range that was not fetched.
-   *
-   * @throws IllegalArgumentException when {@code from} is after {@code to} or a bar's timestamp is
-   *     outside {@code [from, to]}
+   * @throws IllegalArgumentException when {@code from} is after {@code to}, or a bar is outside
+   *     {@code [from, to]} or not on a whole minute
    */
   void save(String symbol, List<Bar> bars, Instant from, Instant to) {
-    if (from.isAfter(to)) {
-      throw new IllegalArgumentException("from " + from + " is after to " + to);
-    }
-    Set<TypedTuple<String>> members =
-        bars.stream()
-            .map(bar -> toMember(bar, from, to))
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-    Span fetched = new Span(from, to);
-    Span span =
-        readSpan(symbol).filter(fetched::overlapsOrTouches).map(fetched::union).orElse(fetched);
+    checkRange(from, to);
+    Set<TypedTuple<String>> entries = entriesFor(bars, from, to);
     String key = keyOf(symbol);
-    String spanKey = spanKeyOf(symbol);
-    redis.execute(
-        new SessionCallback<List<Object>>() {
-          @Override
-          @SuppressWarnings("unchecked")
-          public <K, V> List<Object> execute(RedisOperations<K, V> operations)
-              throws DataAccessException {
-            RedisOperations<String, String> ops = (RedisOperations<String, String>) operations;
-            ops.multi();
-            ops.opsForZSet().removeRangeByScore(key, scoreOf(from), scoreOf(to));
-            // ZADD with no members is a Redis error, so an empty fetch only clears the range.
-            if (!members.isEmpty()) {
-              ops.opsForZSet().add(key, members);
-            }
-            ops.opsForHash()
-                .putAll(
-                    spanKey,
-                    Map.of(
-                        SPAN_FROM, String.valueOf(span.from().toEpochMilli()),
-                        SPAN_TO, String.valueOf(span.to().toEpochMilli())));
-            return ops.exec();
+
+    inTransaction(
+        ops -> {
+          ops.opsForZSet().removeRangeByScore(key, scoreOf(from), scoreOf(to));
+          // ZADD with no entries is a Redis error; a range with no whole minute has none.
+          if (!entries.isEmpty()) {
+            ops.opsForZSet().add(key, entries);
           }
         });
   }
 
   /**
-   * Whether every bar of {@code symbol} in {@code [from, to]} was fetched and is stored, so {@link
-   * #read} returns all of them.
+   * The bars of {@code symbol} in {@code [from, to]}, both ends included, oldest first, when every
+   * minute in the range was fetched. Empty when any minute is missing, so the caller asks Alpaca.
+   *
+   * @throws IllegalArgumentException when {@code from} is after {@code to}
    */
-  boolean covers(String symbol, Instant from, Instant to) {
-    return readSpan(symbol).map(span -> span.contains(from, to)).orElse(false);
-  }
-
-  /** The bars stored for {@code symbol} in {@code [from, to]}, both ends included, oldest first. */
-  List<Bar> read(String symbol, Instant from, Instant to) {
-    Set<String> members =
+  Optional<List<Bar>> readIfComplete(String symbol, Instant from, Instant to) {
+    checkRange(from, to);
+    Set<String> entries =
         redis.opsForZSet().rangeByScore(keyOf(symbol), scoreOf(from), scoreOf(to));
-    if (members == null) {
-      return List.of();
+    if (entries == null || entries.size() != minutesIn(from, to).size()) {
+      return Optional.empty();
     }
-    return members.stream().map(this::fromJson).toList();
+    return Optional.of(
+        entries.stream().filter(entry -> !isNoBar(entry)).map(this::fromJson).toList());
   }
 
   static String keyOf(String symbol) {
     return KEY_PREFIX + symbol;
   }
 
-  static String spanKeyOf(String symbol) {
-    return KEY_PREFIX + symbol + SPAN_SUFFIX;
+  /** One entry per whole minute in {@code [from, to]}: its bar, or a {@code none} entry. */
+  private Set<TypedTuple<String>> entriesFor(List<Bar> bars, Instant from, Instant to) {
+    Set<Instant> minutesWithBar = new LinkedHashSet<>();
+    Set<TypedTuple<String>> entries = new LinkedHashSet<>();
+    for (Bar bar : bars) {
+      Instant t = bar.timestamp();
+      if (t.isBefore(from) || t.isAfter(to)) {
+        throw new IllegalArgumentException(
+            "bar at " + t + " is outside the saved range [" + from + ", " + to + "]");
+      }
+      if (!t.equals(t.truncatedTo(ChronoUnit.MINUTES))) {
+        throw new IllegalArgumentException("bar at " + t + " is not on a whole minute");
+      }
+      minutesWithBar.add(t);
+      entries.add(TypedTuple.of(toJson(bar), scoreOf(t)));
+    }
+    for (Instant minute : minutesIn(from, to)) {
+      if (!minutesWithBar.contains(minute)) {
+        entries.add(TypedTuple.of(NO_BAR_PREFIX + minute.toEpochMilli(), scoreOf(minute)));
+      }
+    }
+    return entries;
   }
 
-  private Optional<Span> readSpan(String symbol) {
-    Map<Object, Object> fields = redis.opsForHash().entries(spanKeyOf(symbol));
-    Object from = fields.get(SPAN_FROM);
-    Object to = fields.get(SPAN_TO);
-    if (from == null || to == null) {
-      return Optional.empty();
+  /** The whole minutes in {@code [from, to]}, both ends included. */
+  private static List<Instant> minutesIn(Instant from, Instant to) {
+    Instant minute = from.truncatedTo(ChronoUnit.MINUTES);
+    if (minute.isBefore(from)) {
+      minute = minute.plus(MINUTE);
     }
-    return Optional.of(
-        new Span(
-            Instant.ofEpochMilli(Long.parseLong((String) from)),
-            Instant.ofEpochMilli(Long.parseLong((String) to))));
+    List<Instant> minutes = new ArrayList<>();
+    while (!minute.isAfter(to)) {
+      minutes.add(minute);
+      minute = minute.plus(MINUTE);
+    }
+    return minutes;
   }
 
-  private TypedTuple<String> toMember(Bar bar, Instant from, Instant to) {
-    Instant t = bar.timestamp();
-    if (t.isBefore(from) || t.isAfter(to)) {
-      throw new IllegalArgumentException(
-          "bar at " + t + " is outside the saved range [" + from + ", " + to + "]");
+  /**
+   * Runs {@code commands} in one {@code MULTI}/{@code EXEC}: Redis runs them together, with no
+   * other client's command in between.
+   */
+  private void inTransaction(Consumer<RedisOperations<String, String>> commands) {
+    redis.execute(
+        new SessionCallback<List<Object>>() {
+          @Override
+          @SuppressWarnings("unchecked")
+          public <K, V> List<Object> execute(RedisOperations<K, V> operations) {
+            RedisOperations<String, String> ops = (RedisOperations<String, String>) operations;
+            ops.multi();
+            commands.accept(ops);
+            return ops.exec();
+          }
+        });
+  }
+
+  private static void checkRange(Instant from, Instant to) {
+    if (from.isAfter(to)) {
+      throw new IllegalArgumentException("from " + from + " is after to " + to);
     }
-    return TypedTuple.of(toJson(bar), scoreOf(t));
+  }
+
+  private static boolean isNoBar(String entry) {
+    return entry.startsWith(NO_BAR_PREFIX);
   }
 
   private static double scoreOf(Instant instant) {
@@ -165,28 +175,11 @@ class BarRedisRepository {
     }
   }
 
-  private Bar fromJson(String member) {
+  private Bar fromJson(String entry) {
     try {
-      return json.readValue(member, Bar.class);
+      return json.readValue(entry, Bar.class);
     } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Cannot read cached bar: " + member, e);
-    }
-  }
-
-  /** A time range with both ends included. */
-  private record Span(Instant from, Instant to) {
-
-    boolean overlapsOrTouches(Span other) {
-      return !from.isAfter(other.to) && !other.from.isAfter(to);
-    }
-
-    Span union(Span other) {
-      return new Span(
-          from.isBefore(other.from) ? from : other.from, to.isAfter(other.to) ? to : other.to);
-    }
-
-    boolean contains(Instant start, Instant end) {
-      return !start.isBefore(from) && !end.isAfter(to);
+      throw new IllegalStateException("Cannot read cached bar: " + entry, e);
     }
   }
 }
