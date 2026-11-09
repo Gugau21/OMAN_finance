@@ -16,7 +16,6 @@ The backend is available directly at `http://localhost:8080`. When the developme
 Useful endpoints:
 
 - `GET /actuator/health` - application and database health
-- `GET /api/v1/ping` - API smoke test
 
 ## Run locally
 
