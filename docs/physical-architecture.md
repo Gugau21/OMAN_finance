@@ -27,7 +27,6 @@ flowchart TB
         backend["backend<br/>Spring Boot / Java 21 :8080"]
         db["db<br/>PostgreSQL 15 :5432"]
         cache["cache<br/>Redis 7 :6379"]
-        init["database/init.sql"]
     end
     volume[("postgres_data<br/>Docker named volume")]
 
@@ -43,7 +42,6 @@ flowchart TB
     backend -->|"JDBC db:5432"| db
     backend -->|"Redis cache:6379"| cache
     db --> volume
-    init -. "Initialization script" .-> db
 ```
 
 The development profile runs Nginx in front of the Vite development server.
@@ -64,7 +62,6 @@ flowchart TB
         backend["backend<br/>Spring Boot / Java 21 :8080"]
         db["db<br/>PostgreSQL 15 :5432"]
         cache["cache<br/>Redis 7 :6379"]
-        init["database/init.sql"]
     end
     volume[("postgres_data<br/>Docker named volume")]
 
@@ -75,7 +72,6 @@ flowchart TB
     backend -->|"JDBC db:5432"| db
     backend -->|"Redis cache:6379"| cache
     db --> volume
-    init -. "Initialization script" .-> db
 ```
 
 The production profile serves the compiled React/Vite files directly from the
@@ -144,20 +140,24 @@ headers.
 - PostgreSQL data is stored in the named Docker volume `postgres_data`, mounted
   at `/var/lib/postgresql/data`. Removing the container does not remove this
   data; removing the named volume does.
-- [`database/init.sql`](../database/init.sql) is mounted into PostgreSQL's
-  initialization directory. It creates the initial `Stock` table when the
-  database volume is initialized. PostgreSQL initialization scripts do not
-  automatically rerun on an already-initialized volume.
+- The schema is owned by the backend. Flyway runs the migrations in
+  [`backend/src/main/resources/db/migration`](../backend/src/main/resources/db/migration)
+  when the backend starts and records them in `flyway_schema_history`, so a
+  migration runs once per database, on a fresh volume or an existing one.
+  `V1__create_stock.sql` creates the `stock` table and seeds the 30 tracked
+  stocks.
 - Redis has no volume in the Compose definition. Its cache is therefore
   container-lifetime state and can be lost when the Redis container is
-  recreated.
+  recreated. Losing it is safe: cached bars are fetched from Alpaca again.
+  Bars older than `alpaca.bar-cache-retention` (7 days by default) are
+  deleted automatically.
 - Database credentials, datasource settings, Redis settings, CORS origins, and
   frontend API settings are supplied through environment substitution, normally
   from `.env`. Secrets should not be committed to the repository.
 
-The backend validates the existing schema rather than creating or modifying
-it (`ddl-auto=validate`). Schema evolution therefore requires an explicit
-database migration mechanism.
+Hibernate validates the schema rather than creating or modifying it
+(`ddl-auto=validate`). Every schema change is a new `V<n>__<description>.sql`
+migration; a migration that has already been applied is never edited.
 
 ## 6. Startup and health dependencies
 
@@ -165,6 +165,15 @@ database migration mechanism.
 - Redis has a `redis-cli ping` health check.
 - The backend waits for PostgreSQL to become healthy before Compose starts it.
 - The backend does not currently declare a Compose health dependency on Redis.
+  It does not need Redis to start or to serve bars: while Redis is down,
+  historical bars come straight from Alpaca. The Redis connect and command
+  timeouts are 1 s (`SPRING_DATA_REDIS_CONNECT_TIMEOUT`,
+  `SPRING_DATA_REDIS_TIMEOUT`).
+- The backend needs Alpaca to start: it fetches the market status from
+  `/v2/clock` before the web server starts. When Alpaca is unavailable it
+  tries 3 times, 2 s and then 4 s apart, and then exits; `restart: unless-stopped`
+  starts it again. Rejected API keys stop it the same way, with a message
+  naming `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY`.
 - Nginx has no Compose health check or explicit dependency on the backend in the
   production profile. The `/actuator/health` route is available for external
   monitoring through Nginx.

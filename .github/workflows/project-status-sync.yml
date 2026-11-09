@@ -27,7 +27,6 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           COMMITS: ${{ toJSON(github.event.commits.*.message) }}
           PR_NODE_ID: ${{ github.event.pull_request.node_id }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
           REPO: ${{ github.repository }}
         run: |
@@ -108,11 +107,8 @@ jobs:
             done
           fi
 
-          # ---------- PR closed: PR -> Done, linked Developed issues -> Done ----------
+          # ---------- PR closed: linked Developed issues -> Done ----------
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_MERGED" = "true" ]; then
-            echo "PR #$PR_NUMBER -> $DONE"
-            set_status "$(add_item "$PR_NODE_ID")" "$DONE_ID"
-
             for id in $(gh api graphql -f query='
                 query($i:ID!){ node(id:$i){ ... on PullRequest {
                   closingIssuesReferences(first:50){ nodes { id } } } } }' \

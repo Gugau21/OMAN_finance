@@ -15,24 +15,17 @@ jobs:
   test:
     name: Backend Tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: user
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: emppulse_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U user -d emppulse_db"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
     env:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: emppulse_db
       SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/emppulse_db
       SPRING_DATASOURCE_USERNAME: user
       SPRING_DATASOURCE_PASSWORD: password
+      SPRING_DATA_REDIS_HOST: localhost
+      SPRING_DATA_REDIS_PORT: 6379
+      ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+      ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -46,5 +39,26 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Start database and cache
+        run: docker compose -f ../docker-compose.yml up -d --wait db cache
+
       - name: Run backend tests
         run: ./gradlew test
+
+      - name: Sanitize branch name
+        run: |
+          RAW_REF="${{ github.head_ref || github.ref_name }}"
+          CLEAN_REF=$(echo "$RAW_REF" | sed 's/[^a-zA-Z0-9._-]/--/g')
+          echo "CLEAN_BRANCH_NAME=$CLEAN_REF" >> $GITHUB_ENV
+        
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-test-report-${{ env.CLEAN_BRANCH_NAME }}
+          path: backend/build/reports/tests/test/
+          overwrite: true
+
+      - name: Stop database and cache
+        if: ${{ always() }}
+        run: docker compose -f ../docker-compose.yml down -v

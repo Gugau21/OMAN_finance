@@ -9,6 +9,9 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      # Short, so a Redis that is down costs getBars about a second before it falls back to Alpaca.
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:1s}
   cache:
     type: ${SPRING_CACHE_TYPE:redis}
   jpa:
@@ -32,6 +35,11 @@ alpaca:
   trading-base-url: ${ALPACA_TRADING_BASE_URL:https://paper-api.alpaca.markets}
   data-base-url: ${ALPACA_DATA_BASE_URL:https://data.alpaca.markets}
   stream-url: ${ALPACA_STREAM_URL:wss://stream.data.alpaca.markets/v2/iex}
+  connect-timeout: ${ALPACA_CONNECT_TIMEOUT:5s}
+  read-timeout: ${ALPACA_READ_TIMEOUT:10s}
+  max-retry-wait: ${ALPACA_MAX_RETRY_WAIT:30s}
+  bar-cache-retention: ${ALPACA_BAR_CACHE_RETENTION:7d}
+  clock-refresh-interval: ${ALPACA_CLOCK_REFRESH_INTERVAL:15m}
 
 management:
   endpoints:

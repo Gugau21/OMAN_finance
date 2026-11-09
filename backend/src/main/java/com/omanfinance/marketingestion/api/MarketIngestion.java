@@ -4,6 +4,7 @@ import com.omanfinance.marketingestion.api.dto.Bar;
 import com.omanfinance.marketingestion.api.dto.BarsRequest;
 import com.omanfinance.marketingestion.api.dto.BarsResponse;
 import com.omanfinance.marketingestion.api.dto.Clock;
+import com.omanfinance.marketingestion.api.dto.Stock;
 import java.util.List;
 import reactor.core.publisher.Flux;
 
@@ -27,7 +28,9 @@ public interface MarketIngestion {
    * more pages and returns them all in one response, so its {@code nextPageToken} is always null.
    * Blocks until the bars are available.
    *
-   * @throws AlpacaUnavailableException when Alpaca returns 429 or 5xx or does not answer in time
+   * @throws AlpacaUnavailableException when Alpaca returns 5xx, does not answer in time, or still
+   *     returns 429 after one retry (the retry waits for {@code Retry-After}, at most {@code
+   *     alpaca.max-retry-wait})
    * @throws AlpacaConfigException when Alpaca rejects the API keys with 401 or 403
    */
   BarsResponse getBars(BarsRequest request);
@@ -47,8 +50,11 @@ public interface MarketIngestion {
    */
   Flux<Clock> streamMarketStatus();
 
-  /** The symbols currently tracked, in a stable order. The list is unmodifiable. */
-  List<String> getTrackedSymbols();
+  /**
+   * The stocks currently tracked, each with its symbol and company name, in a stable order. The
+   * list is unmodifiable.
+   */
+  List<Stock> getTrackedStocks();
 
   /**
    * Starts tracking {@code symbol}: stores it and subscribes the live stream to it. Not implemented
