@@ -15,9 +15,8 @@ import reactor.core.publisher.Flux;
  * The real {@link MarketIngestion}, backed by Alpaca and the {@code stock} table. Active under
  * every profile except {@code fake}.
  *
- * <p>Methods that are not implemented yet throw {@link UnsupportedOperationException} until the
- * issue that implements them lands. All of them ship together in PR 2 (A2–A5), so this class never
- * reaches {@code main} half-done.
+ * <p>The two streams are not implemented yet and throw {@link UnsupportedOperationException}: they
+ * ship in PR 3 (A6, A7). Until then, other modules use the {@code fake} profile to read them.
  */
 @Component
 @Profile("!fake")
@@ -25,6 +24,7 @@ public class AlpacaMarketIngestion implements MarketIngestion {
 
   private final List<Stock> trackedStocks;
   private final CachingBarsClient barsClient;
+  private final MarketClock marketClock;
 
   /**
    * Reads the tracked stocks from the {@code stock} table once, so {@link #getTrackedStocks} never
@@ -32,12 +32,14 @@ public class AlpacaMarketIngestion implements MarketIngestion {
    *
    * @throws IllegalStateException when the table is empty, so the application does not start
    */
-  AlpacaMarketIngestion(StockRepository stocks, CachingBarsClient barsClient) {
+  AlpacaMarketIngestion(
+      StockRepository stocks, CachingBarsClient barsClient, MarketClock marketClock) {
     this.trackedStocks = stocks.findAllByOrderByIdAsc().stream().map(StockEntity::toStock).toList();
     if (trackedStocks.isEmpty()) {
       throw new IllegalStateException("The stock table is empty: no stocks to track");
     }
     this.barsClient = barsClient;
+    this.marketClock = marketClock;
   }
 
   /** Not implemented yet: comes with A7 (live bars from the Alpaca WebSocket). */
@@ -55,16 +57,16 @@ public class AlpacaMarketIngestion implements MarketIngestion {
     return barsClient.getBars(request);
   }
 
-  /** Not implemented yet: comes with A4 ({@code MarketClock}). */
+  /** The status {@link MarketClock} holds; it was fetched before this bean could be created. */
   @Override
   public Clock getMarketStatus() {
-    throw notYet("getMarketStatus", "A4");
+    return marketClock.current();
   }
 
-  /** Not implemented yet: comes with A4 ({@code MarketClock}). */
+  /** Not implemented yet: comes with A6 (market status pushed to browsers). */
   @Override
   public Flux<Clock> streamMarketStatus() {
-    throw notYet("streamMarketStatus", "A4");
+    throw notYet("streamMarketStatus", "A6");
   }
 
   /** The stocks read from the {@code stock} table at startup, ordered by {@code id}. */
