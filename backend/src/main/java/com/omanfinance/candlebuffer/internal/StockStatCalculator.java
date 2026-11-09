@@ -1,0 +1,40 @@
+package com.omanfinance.candlebuffer.internal;
+
+import com.omanfinance.candlebuffer.api.dto.Candle;
+import com.omanfinance.candlebuffer.api.dto.StockStat;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.util.List;
+import org.springframework.stereotype.Component;
+
+@Component
+public class StockStatCalculator {
+  private CandleHistory candleHistory;
+
+  public StockStatCalculator(CandleHistory candleHistory) {
+    this.candleHistory = candleHistory;
+  }
+
+  /** Returns {@code null} when there is no data (e.g. backfill failed for this symbol). */
+  public StockStat getStockStat(String symbol, int windowSize) {
+    List<Candle> candles = candleHistory.getLastCandles(symbol, windowSize);
+    if (candles.isEmpty()) {
+      return null;
+    }
+
+    Instant timestamp = candles.getLast().timestamp();
+
+    BigDecimal price = candles.getLast().close();
+    BigDecimal prevPrice = candles.getFirst().open();
+
+    BigDecimal change = price.subtract(prevPrice);
+    BigDecimal changePercent =
+        change.divide(prevPrice, 10, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+    long volume = candles.stream().mapToLong(Candle::volume).sum();
+
+    StockStat stockStat = new StockStat(symbol, timestamp, price, change, changePercent, volume);
+
+    return stockStat;
+  }
+}
