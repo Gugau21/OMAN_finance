@@ -152,7 +152,7 @@ flowchart TB
 
     subgraph ingestion["<b>marketingestion</b>"]
         direction LR
-        barsClient["<b>CachingBarsClient → AlpacaBarsClient</b><br/><small>GET /v2/stocks/bars<br/>returns cached raw bars if Redis has every minute,<br/>else fetches all pages from Alpaca with feed=iex,<br/>caches the settled minutes, returns the raw response<br/>Redis down: bars come from Alpaca</small>"]
+        barsClient["<b>CachingBarsClient → AlpacaBarsClient</b><br/><small>GET /v2/stocks/bars<br/>returns cached raw bars if Redis has every minute,<br/>else fetches all pages from Alpaca with feed=iex,<br/>caches the settled minutes, returns the raw response<br/>Redis down: bars come from Alpaca<br/>429: one retry after Retry-After</small>"]
         barRepo["<b>BarRedisRepository</b><br/><small>raw Alpaca bars, one entry per minute<br/>none:{ms} for a minute with no trades<br/>deletes entries older than the retention</small>"]
         stockRepo["<b>StockRepository</b><br/><small>SELECT / INSERT / DELETE on Stock<br/>keeps the symbol list in memory</small>"]
         ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): stream of Bars<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>getTrackedStocks(): list of Stocks<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
@@ -323,6 +323,21 @@ flowchart TB
     dead Redis does not stall it.
   - Either way the caller gets the same bars Alpaca would send: values are
     not checked or changed, and `none` entries never leave the repository.
+- **Alpaca errors.** Every REST call to Alpaca goes through
+  `AlpacaErrorHandling`, so callers of `MarketIngestion` never see Spring's
+  HTTP client exceptions:
+  - **401 / 403** → `AlpacaConfigException`. Its message says to check
+    `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY`. It is not logged here;
+    the caller decides how to report it. Retrying does not help.
+  - **429** → wait for `Retry-After` (seconds; 1 s when it is missing or not
+    a number), at most `alpaca.max-retry-wait` (30 s by default), then send
+    the request once more. A second 429 → `AlpacaUnavailableException`.
+  - **5xx, a timeout or a broken connection** →
+    `AlpacaUnavailableException`, with the I/O error as the cause. The
+    connect and read timeouts are `alpaca.connect-timeout` (5 s) and
+    `alpaca.read-timeout` (10 s).
+  - The caller (`CandleBackfiller`, `MarketClock`) handles both exceptions;
+    ClientFeed never sees them.
 - `MarketClock` keeps the market status in memory, not in Redis. It calls
   Alpaca `/v2/clock` at startup, again at the next open or close, and on a
   periodic safety-net refresh.

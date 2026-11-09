@@ -48,6 +48,7 @@ class AlpacaBarsClientLiveTest {
             URI.create("wss://stream.data.alpaca.markets/v2/iex"),
             Duration.ofSeconds(5),
             Duration.ofSeconds(10),
+            Duration.ofSeconds(30),
             Duration.ofDays(7));
     client =
         new AlpacaBarsClient(

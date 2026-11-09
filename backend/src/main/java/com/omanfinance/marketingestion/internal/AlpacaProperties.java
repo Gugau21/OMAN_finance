@@ -11,6 +11,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <p>{@code connectTimeout} and {@code readTimeout} apply to every REST call to Alpaca. A call that
  * runs past either fails instead of blocking the caller.
  *
+ * <p>{@code maxRetryWait} is the longest wait before retrying a call that Alpaca answered with 429,
+ * whatever its {@code Retry-After} header says.
+ *
  * <p>{@code barCacheRetention} is how long bars fetched from Alpaca stay cached in Redis.
  */
 @ConfigurationProperties("alpaca")
@@ -22,13 +25,14 @@ public record AlpacaProperties(
     URI streamUrl,
     Duration connectTimeout,
     Duration readTimeout,
+    Duration maxRetryWait,
     Duration barCacheRetention) {
 
   /** Keeps the secret key out of logs. */
   @Override
   public String toString() {
     return ("AlpacaProperties[apiKeyId=%s, apiSecretKey=***, tradingBaseUrl=%s, dataBaseUrl=%s,"
-            + " streamUrl=%s, connectTimeout=%s, readTimeout=%s, barCacheRetention=%s]")
+            + " streamUrl=%s, connectTimeout=%s, readTimeout=%s, maxRetryWait=%s, barCacheRetention=%s]")
         .formatted(
             apiKeyId,
             tradingBaseUrl,
@@ -36,6 +40,7 @@ public record AlpacaProperties(
             streamUrl,
             connectTimeout,
             readTimeout,
+            maxRetryWait,
             barCacheRetention);
   }
 }

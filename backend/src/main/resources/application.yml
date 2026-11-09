@@ -37,6 +37,7 @@ alpaca:
   stream-url: ${ALPACA_STREAM_URL:wss://stream.data.alpaca.markets/v2/iex}
   connect-timeout: ${ALPACA_CONNECT_TIMEOUT:5s}
   read-timeout: ${ALPACA_READ_TIMEOUT:10s}
+  max-retry-wait: ${ALPACA_MAX_RETRY_WAIT:30s}
   bar-cache-retention: ${ALPACA_BAR_CACHE_RETENTION:7d}
 
 management:
