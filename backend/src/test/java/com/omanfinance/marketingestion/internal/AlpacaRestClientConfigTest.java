@@ -58,6 +58,22 @@ class AlpacaRestClientConfigTest {
   }
 
   @Test
+  void sendsTheApiKeysToTheTradingApi() {
+    RestClient client =
+        new AlpacaRestClientConfig()
+            .alpacaTradingRestClient(RestClient.builder(), propertiesWithTradingApiOnServer());
+
+    String body = client.get().uri("/v2/clock").retrieve().body(String.class);
+
+    assertThat(body).isEqualTo("{}");
+    assertThat(receivedPath.get()).isEqualTo("/v2/clock");
+    assertThat(receivedHeaders.get().getFirst(AlpacaRestClientConfig.API_KEY_ID_HEADER))
+        .isEqualTo("key-id");
+    assertThat(receivedHeaders.get().getFirst(AlpacaRestClientConfig.API_SECRET_KEY_HEADER))
+        .isEqualTo("secret-key");
+  }
+
+  @Test
   void givesUpWhenAlpacaAnswersAfterTheReadTimeout() {
     responseDelay = Duration.ofSeconds(2);
     RestClient client = clientWithReadTimeout(Duration.ofMillis(200));
@@ -80,6 +96,20 @@ class AlpacaRestClientConfigTest {
             Duration.ofSeconds(30),
             Duration.ofDays(7));
     return new AlpacaRestClientConfig().alpacaDataRestClient(RestClient.builder(), properties);
+  }
+
+  /** Points only the trading API at the test server, so a hit proves the right base URL. */
+  private AlpacaProperties propertiesWithTradingApiOnServer() {
+    return new AlpacaProperties(
+        "key-id",
+        "secret-key",
+        URI.create("http://localhost:" + server.getAddress().getPort()),
+        URI.create("http://data.invalid"),
+        URI.create("ws://stream.invalid"),
+        Duration.ofSeconds(1),
+        Duration.ofSeconds(5),
+        Duration.ofSeconds(30),
+        Duration.ofDays(7));
   }
 
   private void answer(HttpExchange exchange) throws IOException {
