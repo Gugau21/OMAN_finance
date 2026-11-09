@@ -16,7 +16,10 @@ The backend is available directly at `http://localhost:8080`. When the developme
 Useful endpoints:
 
 - `GET /actuator/health` - application and database health
-- `GET /api/v1/ping` - API smoke test
+- `GET /api/market/status` - whether the market is open, and the next open and close times
+- `GET /api/stocks` - symbol and company name of every tracked stock
+
+The full REST API, including the error responses, is described in [`docs/api_contract.yaml`](../docs/api_contract.yaml).
 
 ## Run locally
 

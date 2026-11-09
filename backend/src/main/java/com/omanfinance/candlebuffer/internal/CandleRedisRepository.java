@@ -1,0 +1,86 @@
+package com.omanfinance.candlebuffer.internal;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omanfinance.candlebuffer.api.dto.Candle;
+import java.util.List;
+import java.util.Set;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.lang.NonNull;
+import org.springframework.stereotype.Repository;
+
+@Repository
+class CandleRedisRepository {
+
+  /** Newest candles kept per symbol. Rank {@code -(MAX_CANDLES + 1)} is the first one dropped. */
+  private static final int MAX_CANDLES = 60;
+
+  private static final int TRIM_THROUGH_RANK = -(MAX_CANDLES + 1);
+
+  private final StringRedisTemplate redis;
+  private final ObjectMapper objectMapper;
+
+  public CandleRedisRepository(StringRedisTemplate redis, ObjectMapper objectMapper) {
+    this.redis = redis;
+    this.objectMapper = objectMapper;
+  }
+
+  void saveCandles(String symbol, List<Candle> candles) {
+    String key = "candles:" + symbol;
+
+    redis.execute(
+        new SessionCallback<Object>() {
+          @Override
+          @SuppressWarnings({"unchecked", "null"})
+          public <K, V> Object execute(@NonNull RedisOperations<K, V> ops) {
+            RedisOperations<String, String> redisOps = (RedisOperations<String, String>) ops;
+            redisOps.multi();
+            for (var candle : candles) {
+              String member = toJson(candle);
+              double score = candle.timestamp().getEpochSecond();
+              redisOps.opsForZSet().add(key, member, score);
+            }
+            redisOps.opsForZSet().removeRange(key, 0, TRIM_THROUGH_RANK);
+            return redisOps.exec();
+          }
+        });
+  }
+
+  void saveCandle(String symbol, Candle candle) {
+    saveCandles(symbol, List.of(candle));
+  }
+
+  /**
+   * Up to {@code n} most recent candles for {@code symbol}, ordered by open time: oldest first,
+   * newest last. Fewer than {@code n} when the key holds less data; empty when none.
+   */
+  List<Candle> getLastCandles(String symbol, int numberOfCandles) {
+    ZSetOperations<String, String> set = redis.opsForZSet();
+    String key = "candles:" + symbol;
+
+    Set<String> members = set.range(key, -numberOfCandles, -1);
+    if (members == null || members.isEmpty()) {
+      return List.of();
+    }
+    return members.stream().map(this::fromJson).toList();
+  }
+
+  private String toJson(Candle candle) {
+    try {
+      return objectMapper.writeValueAsString(candle);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private Candle fromJson(String json) {
+    try {
+      return objectMapper.readValue(json, Candle.class);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+}

@@ -5,6 +5,7 @@ import com.omanfinance.marketingestion.api.dto.Bar;
 import com.omanfinance.marketingestion.api.dto.BarsRequest;
 import com.omanfinance.marketingestion.api.dto.BarsResponse;
 import com.omanfinance.marketingestion.api.dto.Clock;
+import com.omanfinance.marketingestion.api.dto.Stock;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -35,8 +36,17 @@ import reactor.core.scheduler.Schedulers;
 @Profile("fake")
 public class FakeMarketIngestion implements MarketIngestion {
 
-  /** The symbols the fake tracks. */
-  public static final List<String> SYMBOLS = List.of("AAPL", "MSFT", "JPM", "KO", "NVDA");
+  /** The stocks the fake tracks. */
+  public static final List<Stock> STOCKS =
+      List.of(
+          new Stock("AAPL", "Apple Inc."),
+          new Stock("MSFT", "Microsoft Corporation"),
+          new Stock("JPM", "JPMorgan Chase & Co."),
+          new Stock("KO", "The Coca-Cola Company"),
+          new Stock("NVDA", "NVIDIA Corporation"));
+
+  /** The symbols of {@link #STOCKS}, in the same order. */
+  public static final List<String> SYMBOLS = STOCKS.stream().map(Stock::symbol).toList();
 
   private static final Duration MINUTE = Duration.ofMinutes(1);
 
@@ -146,8 +156,8 @@ public class FakeMarketIngestion implements MarketIngestion {
   }
 
   @Override
-  public List<String> getTrackedSymbols() {
-    return SYMBOLS;
+  public List<Stock> getTrackedStocks() {
+    return STOCKS;
   }
 
   @Override
