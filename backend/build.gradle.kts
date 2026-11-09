@@ -26,12 +26,15 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("io.projectreactor:reactor-core")
+    implementation("org.flywaydb:flyway-core")
+    runtimeOnly("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:testcontainers:1.21.4")
     testImplementation("org.testcontainers:junit-jupiter:1.21.4")
     testImplementation("io.projectreactor:reactor-test")
+    testImplementation("com.atlassian.oai:swagger-request-validator-mockmvc:2.46.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

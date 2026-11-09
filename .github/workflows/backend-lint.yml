@@ -28,5 +28,5 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Run Spotless and Checkstyle
+      - name: Run backend lint and style checks
         run: ./gradlew spotlessCheck checkstyleMain checkstyleTest
