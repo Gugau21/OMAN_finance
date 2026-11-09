@@ -106,16 +106,16 @@ export function MainPage() {
                 isLoading
                   ? 'bg-gray-300 animate-pulse'
                   : marketStatus?.isOpen
-                  ? 'bg-green-500'
-                  : 'bg-slate-500'
+                    ? 'bg-green-500'
+                    : 'bg-slate-500'
               }`}
             ></div>
             <span className="text-[10px] font-bold text-gray-800 font-inter">
               {isLoading
                 ? 'Loading status...'
                 : marketStatus?.isOpen
-                ? 'US markets open'
-                : 'US markets closed'}
+                  ? 'US markets open'
+                  : 'US markets closed'}
             </span>
           </div>
           <span className="text-[10px] text-gray-500 font-inter">
@@ -154,11 +154,21 @@ export function MainPage() {
                         <div className="w-20 h-3 bg-gray-100 rounded animate-pulse"></div>
                       </div>
                     </td>
-                    <td className="py-3 px-2"><div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
-                    <td className="py-3 px-2"><div className="w-10 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
-                    <td className="py-3 px-2"><div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
-                    <td className="py-3 px-2"><div className="w-10 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
-                    <td className="py-3 px-2"><div className="w-16 h-8 bg-gray-100 rounded animate-pulse ml-auto"></div></td>
+                    <td className="py-3 px-2">
+                      <div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-2">
+                      <div className="w-10 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-2">
+                      <div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-2">
+                      <div className="w-10 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-2">
+                      <div className="w-16 h-8 bg-gray-100 rounded animate-pulse ml-auto"></div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -184,8 +194,12 @@ export function MainPage() {
                 <tr>
                   <td colSpan={6} className="py-12">
                     <div className="flex flex-col items-center justify-center text-center">
-                      <span className="text-gray-500 font-bold text-xs mb-1">No Stocks Available</span>
-                      <span className="text-gray-400 text-[10px]">The market data is currently empty.</span>
+                      <span className="text-gray-500 font-bold text-xs mb-1">
+                        No Stocks Available
+                      </span>
+                      <span className="text-gray-400 text-[10px]">
+                        The market data is currently empty.
+                      </span>
                     </div>
                   </td>
                 </tr>
