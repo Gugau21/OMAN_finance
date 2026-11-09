@@ -1,4 +1,4 @@
-package com.omanfinance.clientfeed;
+package com.omanfinance.marketfeed.web;
 
 import com.omanfinance.marketingestion.api.MarketIngestion;
 import com.omanfinance.marketingestion.api.dto.Stock;

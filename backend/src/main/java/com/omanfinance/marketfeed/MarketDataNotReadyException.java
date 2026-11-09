@@ -1,4 +1,6 @@
-package com.omanfinance.clientfeed;
+package com.omanfinance.marketfeed;
+
+import com.omanfinance.marketfeed.web.ApiExceptionHandler;
 
 /**
  * The market data an endpoint needs is not loaded yet, for example while the backend is still

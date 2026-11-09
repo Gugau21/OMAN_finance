@@ -1,6 +1,6 @@
-package com.omanfinance.clientfeed;
+package com.omanfinance.marketfeed.web;
 
-import static com.omanfinance.clientfeed.ApiContract.matchesContract;
+import static com.omanfinance.marketfeed.web.ApiContract.matchesContract;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;

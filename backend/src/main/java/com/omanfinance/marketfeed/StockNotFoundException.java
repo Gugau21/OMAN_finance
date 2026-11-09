@@ -1,4 +1,6 @@
-package com.omanfinance.clientfeed;
+package com.omanfinance.marketfeed;
+
+import com.omanfinance.marketfeed.web.ApiExceptionHandler;
 
 /**
  * The symbol in the request path is not one of the tracked stocks. {@link ApiExceptionHandler}

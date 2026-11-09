@@ -5,16 +5,27 @@ import com.omanfinance.candlebuffer.api.dto.Candle;
 import com.omanfinance.candlebuffer.api.dto.PricePoint;
 import com.omanfinance.candlebuffer.api.dto.StockStat;
 import java.util.List;
+import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
+@Service
 public class CandleBackfillerService implements CandleBuffer {
   private final CandleHistory candleHistory;
   private final StockStatCalculator stockStatCalculator;
+  private final CandleBufferStartup candleBufferStartup;
 
   public CandleBackfillerService(
-      CandleHistory candleHistory, StockStatCalculator stockStatCalculator) {
+      CandleHistory candleHistory,
+      StockStatCalculator stockStatCalculator,
+      CandleBufferStartup candleBufferStartup) {
     this.candleHistory = candleHistory;
     this.stockStatCalculator = stockStatCalculator;
+    this.candleBufferStartup = candleBufferStartup;
+  }
+
+  @Override
+  public boolean isReady() {
+    return candleBufferStartup.isReady();
   }
 
   @Override

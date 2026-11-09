@@ -19,13 +19,24 @@ class CandleBufferServiceTest {
 
   private CandleHistory candleHistory;
   private StockStatCalculator stockStatCalculator;
+  private CandleBufferStartup candleBufferStartup;
   private CandleBackfillerService service;
 
   @BeforeEach
   void setUp() {
     candleHistory = mock(CandleHistory.class);
     stockStatCalculator = mock(StockStatCalculator.class);
-    service = new CandleBackfillerService(candleHistory, stockStatCalculator);
+    candleBufferStartup = mock(CandleBufferStartup.class);
+    service = new CandleBackfillerService(candleHistory, stockStatCalculator, candleBufferStartup);
+  }
+
+  @Test
+  void isReady_delegates_to_startup() {
+    when(candleBufferStartup.isReady()).thenReturn(true);
+
+    assertThat(service.isReady()).isTrue();
+
+    verify(candleBufferStartup).isReady();
   }
 
   @Test

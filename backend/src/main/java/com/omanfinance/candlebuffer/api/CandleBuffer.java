@@ -7,10 +7,13 @@ import java.util.List;
 import reactor.core.publisher.Flux;
 
 /**
- * The only way other modules read candles and stock stats. ClientFeed calls this interface and does
+ * The only way other modules read candles and stock stats. Marketfeed calls this interface and does
  * not call classes/methods within candlebuffer/internal.
  */
 public interface CandleBuffer {
+
+  /** {@code true} after startup backfill has finished for every tracked symbol. */
+  boolean isReady();
 
   /**
    * Live candles for every tracked symbol, emitted only after each one has been saved. The stream

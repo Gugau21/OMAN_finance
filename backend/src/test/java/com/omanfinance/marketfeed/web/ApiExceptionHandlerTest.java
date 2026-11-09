@@ -1,8 +1,10 @@
-package com.omanfinance.clientfeed;
+package com.omanfinance.marketfeed.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.omanfinance.marketfeed.MarketDataNotReadyException;
+import com.omanfinance.marketfeed.StockNotFoundException;
 import com.omanfinance.marketingestion.api.AlpacaUnavailableException;
 import com.omanfinance.marketingestion.internal.StubAlpacaClock;
 import org.junit.jupiter.api.Test;
