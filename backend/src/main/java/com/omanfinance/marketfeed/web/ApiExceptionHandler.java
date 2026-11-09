@@ -1,5 +1,7 @@
-package com.omanfinance.clientfeed;
+package com.omanfinance.marketfeed.web;
 
+import com.omanfinance.marketfeed.MarketDataNotReadyException;
+import com.omanfinance.marketfeed.StockNotFoundException;
 import com.omanfinance.marketingestion.api.AlpacaUnavailableException;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;

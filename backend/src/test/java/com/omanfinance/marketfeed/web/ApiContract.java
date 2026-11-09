@@ -1,4 +1,4 @@
-package com.omanfinance.clientfeed;
+package com.omanfinance.marketfeed.web;
 
 import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers;
