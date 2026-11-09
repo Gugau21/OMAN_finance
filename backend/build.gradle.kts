@@ -32,6 +32,7 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
+    testImplementation("com.atlassian.oai:swagger-request-validator-mockmvc:2.46.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
