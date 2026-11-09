@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.omanfinance.candlebuffer.api.dto.Candle;
+import com.omanfinance.candlebuffer.api.dto.PricePoint;
 import com.omanfinance.candlebuffer.api.dto.StockStat;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -44,6 +45,37 @@ class StockStatCalculatorTest {
     when(candleHistory.getLastCandles("AAPL", 60)).thenReturn(List.of());
 
     assertThat(calculator.getStockStat("AAPL", 60)).isNull();
+  }
+
+  @Test
+  void getPricePoints_maps_five_candles_to_close_prices() {
+    when(candleHistory.getLastCandles("AAPL", 5)).thenReturn(fiveCandles());
+
+    List<PricePoint> points = calculator.getPricePoints("AAPL", 5);
+
+    assertThat(points).hasSize(5);
+
+    assertThat(points.get(0).timestamp()).isEqualTo(Instant.parse("2026-10-29T16:00:00Z"));
+    assertThat(points.get(0).price()).isEqualByComparingTo("101");
+
+    assertThat(points.get(1).timestamp()).isEqualTo(Instant.parse("2026-10-29T16:01:00Z"));
+    assertThat(points.get(1).price()).isEqualByComparingTo("102");
+
+    assertThat(points.get(2).timestamp()).isEqualTo(Instant.parse("2026-10-29T16:02:00Z"));
+    assertThat(points.get(2).price()).isEqualByComparingTo("103");
+
+    assertThat(points.get(3).timestamp()).isEqualTo(Instant.parse("2026-10-29T16:03:00Z"));
+    assertThat(points.get(3).price()).isEqualByComparingTo("104");
+
+    assertThat(points.get(4).timestamp()).isEqualTo(Instant.parse("2026-10-29T16:04:00Z"));
+    assertThat(points.get(4).price()).isEqualByComparingTo("110");
+  }
+
+  @Test
+  void getPricePoints_returns_null_when_no_candles() {
+    when(candleHistory.getLastCandles("AAPL", 60)).thenReturn(List.of());
+
+    assertThat(calculator.getPricePoints("AAPL", 60)).isNull();
   }
 
   private static List<Candle> fiveCandles() {

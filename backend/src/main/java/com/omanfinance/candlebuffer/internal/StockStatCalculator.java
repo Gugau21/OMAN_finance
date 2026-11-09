@@ -1,6 +1,7 @@
 package com.omanfinance.candlebuffer.internal;
 
 import com.omanfinance.candlebuffer.api.dto.Candle;
+import com.omanfinance.candlebuffer.api.dto.PricePoint;
 import com.omanfinance.candlebuffer.api.dto.StockStat;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -36,5 +37,17 @@ public class StockStatCalculator {
     StockStat stockStat = new StockStat(symbol, timestamp, price, change, changePercent, volume);
 
     return stockStat;
+  }
+
+  /** Returns {@code null} when there is no data (e.g. backfill failed for this symbol). */
+  public List<PricePoint> getPricePoints(String symbol, int numberOfPricePoints) {
+    List<Candle> candles = candleHistory.getLastCandles(symbol, numberOfPricePoints);
+    if (candles.isEmpty()) {
+      return null;
+    }
+
+    List<PricePoint> pricePoints = candles.stream().map(PricePoint::fromCandle).toList();
+
+    return pricePoints;
   }
 }
