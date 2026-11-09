@@ -16,6 +16,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 class CandleBackfiller {
+  private static final int LOOKBACK_DAYS = 5;
+
   private final CandleRedisRepository redis;
   private final MarketIngestion marketIngestion;
   private static final Logger log = LoggerFactory.getLogger(CandleBackfiller.class);
@@ -27,7 +29,7 @@ class CandleBackfiller {
 
   List<Candle> fetchAndSaveCandles(String symbol, int numberOfCandles) {
     Instant end = Instant.now();
-    Instant start = end.minus(5, ChronoUnit.DAYS);
+    Instant start = end.minus(LOOKBACK_DAYS, ChronoUnit.DAYS);
 
     BarsRequest barsRequest =
         new BarsRequest(

@@ -15,6 +15,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 class CandleRedisRepository {
 
+  /** Newest candles kept per symbol. Rank {@code -(MAX_CANDLES + 1)} is the first one dropped. */
+  private static final int MAX_CANDLES = 60;
+
+  private static final int TRIM_THROUGH_RANK = -(MAX_CANDLES + 1);
+
   private final StringRedisTemplate redis;
   private final ObjectMapper objectMapper;
 
@@ -38,7 +43,7 @@ class CandleRedisRepository {
               double score = candle.timestamp().getEpochSecond();
               redisOps.opsForZSet().add(key, member, score);
             }
-            redisOps.opsForZSet().removeRange(key, 0, -61); // ZREMRANGEBYRANK 0 -61
+            redisOps.opsForZSet().removeRange(key, 0, TRIM_THROUGH_RANK);
             return redisOps.exec();
           }
         });

@@ -11,6 +11,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class StockStatCalculator {
+  private static final int CHANGE_PERCENT_SCALE = 10;
+  private static final int PERCENT = 100;
+
   private CandleHistory candleHistory;
 
   public StockStatCalculator(CandleHistory candleHistory) {
@@ -31,7 +34,9 @@ public class StockStatCalculator {
 
     BigDecimal change = price.subtract(prevPrice);
     BigDecimal changePercent =
-        change.divide(prevPrice, 10, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+        change
+            .divide(prevPrice, CHANGE_PERCENT_SCALE, RoundingMode.HALF_UP)
+            .multiply(BigDecimal.valueOf(PERCENT));
     long volume = candles.stream().mapToLong(Candle::volume).sum();
 
     StockStat stockStat = new StockStat(symbol, timestamp, price, change, changePercent, volume);
