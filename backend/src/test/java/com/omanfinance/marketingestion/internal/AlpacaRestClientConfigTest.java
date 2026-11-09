@@ -3,6 +3,7 @@ package com.omanfinance.marketingestion.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.omanfinance.marketingestion.api.AlpacaUnavailableException;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -18,7 +19,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 class AlpacaRestClientConfigTest {
@@ -63,7 +63,7 @@ class AlpacaRestClientConfigTest {
     RestClient client = clientWithReadTimeout(Duration.ofMillis(200));
 
     assertThatThrownBy(() -> client.get().uri("/v2/stocks/bars").retrieve().body(String.class))
-        .isInstanceOf(ResourceAccessException.class);
+        .isInstanceOf(AlpacaUnavailableException.class);
   }
 
   private RestClient clientWithReadTimeout(Duration readTimeout) {
