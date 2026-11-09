@@ -13,11 +13,13 @@ public class CandleHistory {
     this.redis = redis;
   }
 
+  /**
+   * Stored candles for {@code symbol}: up to {@code numberOfCandles} of the most recent minutes,
+   * oldest first, newest last (same order as the REST contract). Iteration 1 reads Redis only; gap
+   * detection and backfill on read come later.
+   */
   public List<Candle> getLastCandles(String symbol, int numberOfCandles) {
-    List<Candle> candles = redis.lastCandles(symbol, numberOfCandles);
-    // in the future this method will also check for gaps and backfill
-    // candles before returning them. For now we assume happy path,
-    // so this is just a wrapper on redis
+    List<Candle> candles = redis.getLastCandles(symbol, numberOfCandles);
 
     return candles;
   }

@@ -48,11 +48,15 @@ class CandleRedisRepository {
     saveCandles(symbol, List.of(candle));
   }
 
-  List<Candle> lastCandles(String symbol, int n) {
+  /**
+   * Up to {@code n} most recent candles for {@code symbol}, ordered by open time: oldest first,
+   * newest last. Fewer than {@code n} when the key holds less data; empty when none.
+   */
+  List<Candle> getLastCandles(String symbol, int numberOfCandles) {
     ZSetOperations<String, String> set = redis.opsForZSet();
     String key = "candles:" + symbol;
 
-    Set<String> members = set.range(key, -n, -1);
+    Set<String> members = set.range(key, -numberOfCandles, -1);
     if (members == null || members.isEmpty()) {
       return List.of();
     }

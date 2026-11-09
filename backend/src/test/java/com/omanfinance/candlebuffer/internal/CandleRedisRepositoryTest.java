@@ -60,7 +60,7 @@ class CandleRedisRepositoryTest {
 
     repository.saveCandle("AAPL", candle);
 
-    List<Candle> last = repository.lastCandles("AAPL", 1);
+    List<Candle> last = repository.getLastCandles("AAPL", 1);
     assertThat(last).hasSize(1);
     assertThat(last.getFirst()).isEqualTo(candle);
     assertThat(template.opsForZSet().score("candles:AAPL", objectMapper.writeValueAsString(candle)))
@@ -77,7 +77,7 @@ class CandleRedisRepositoryTest {
       repository.saveCandle(symbol, candle(symbol, t, "10", "11", "9", "10", 1000L + i));
     }
 
-    List<Candle> last60 = repository.lastCandles(symbol, 60);
+    List<Candle> last60 = repository.getLastCandles(symbol, 60);
     assertThat(last60).hasSize(60);
     assertThat(last60.getFirst().timestamp()).isEqualTo(base.plusSeconds(60));
     assertThat(last60.getLast().timestamp()).isEqualTo(base.plusSeconds(60L * 60));
@@ -85,7 +85,7 @@ class CandleRedisRepositoryTest {
   }
 
   @Test
-  void lastCandles_returns_up_to_n_oldest_first() {
+  void getLastCandles_returns_up_to_n_oldest_first() {
     Instant t0 = Instant.parse("2026-11-06T12:00:00Z");
     Instant t1 = Instant.parse("2026-11-06T12:01:00Z");
     Instant t2 = Instant.parse("2026-11-06T12:02:00Z");
@@ -95,7 +95,7 @@ class CandleRedisRepositoryTest {
     repository.saveCandle(symbol, candle(symbol, t1, "2", "2", "2", "2", 2L));
     repository.saveCandle(symbol, candle(symbol, t2, "3", "3", "3", "3", 3L));
 
-    List<Candle> two = repository.lastCandles(symbol, 2);
+    List<Candle> two = repository.getLastCandles(symbol, 2);
 
     assertThat(two).hasSize(2);
     assertThat(two.get(0).timestamp()).isEqualTo(t1);
