@@ -17,6 +17,8 @@ class AlpacaRestClientConfig {
   /**
    * A {@link RestClient} rooted at {@code alpaca.data-base-url}. It sends the API keys with every
    * request and gives up after {@code alpaca.connect-timeout} or {@code alpaca.read-timeout}.
+   * Alpaca's error answers become the exceptions {@code MarketIngestion} documents (see {@link
+   * AlpacaErrorHandling}).
    */
   @Bean
   RestClient alpacaDataRestClient(RestClient.Builder builder, AlpacaProperties properties) {
@@ -24,7 +26,7 @@ class AlpacaRestClientConfig {
     requestFactory.setConnectTimeout(properties.connectTimeout());
     requestFactory.setReadTimeout(properties.readTimeout());
 
-    return builder
+    return AlpacaErrorHandling.applyTo(builder)
         .requestFactory(requestFactory)
         .baseUrl(properties.dataBaseUrl().toString())
         .defaultHeader(API_KEY_ID_HEADER, properties.apiKeyId())
