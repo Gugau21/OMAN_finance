@@ -155,8 +155,8 @@ flowchart TB
         barsClient["<b>CachingBarsClient → AlpacaBarsClient</b><br/><small>GET /v2/stocks/bars<br/>returns cached raw bars if Redis has every minute,<br/>else fetches all pages from Alpaca with feed=iex,<br/>caches the settled minutes, returns the raw response<br/>Redis down: bars come from Alpaca<br/>429: one retry after Retry-After</small>"]
         barRepo["<b>BarRedisRepository</b><br/><small>raw Alpaca bars, one entry per minute<br/>none:{ms} for a minute with no trades<br/>deletes entries older than the retention</small>"]
         stockRepo["<b>StockRepository</b><br/><small>SELECT / INSERT / DELETE on Stock<br/>keeps the symbol list in memory</small>"]
-        ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): stream of Bars<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>getTrackedStocks(): list of Stocks<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
-        clock["<b>MarketClock</b><br/><small>polls /v2/clock at next open / close<br/>holds the last response in memory</small>"]
+        ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): stream of Bars<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>streamMarketStatus(): stream of Clocks<br/>getTrackedStocks(): list of Stocks<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
+        clock["<b>MarketClock</b><br/><small>calls /v2/clock at startup, at next open / close<br/>and every 15 min (safety net)<br/>holds the last response in memory</small>"]
         barHub["<b>LiveBarStream</b><br/><small>emits each Bar to every subscriber<br/>no saving</small>"]
         barsRequest["<i>«record»</i><br/><b>BarsRequest</b><br/><small>query of GET /v2/stocks/bars · free plan</small><small><table style='white-space:nowrap'><tr><td align='left'><b>symbols</b></td><td align='left'>AAPL,MSFT</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>timeframe</b></td><td align='left'>1Min</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>start</b></td><td align='left'>RFC-3339</td><td align='left'><i>start of day</i></td></tr><tr><td align='left'><b>end</b></td><td align='left'>RFC-3339</td><td align='left'><i>now</i></td></tr><tr><td align='left'><b>limit</b></td><td align='left'>1 – 10000</td><td align='left'><i>1000</i></td></tr><tr><td align='left'><b>sort</b></td><td align='left'>asc | desc</td><td align='left'><i>asc</i></td></tr><tr><td align='left'><b>adjustment</b></td><td align='left'>raw | split | dividend | spin-off | all</td><td align='left'><i>raw</i></td></tr><tr><td align='left'><b>asof</b></td><td align='left'>YYYY-MM-DD</td><td align='left'><i>today</i></td></tr><tr><td align='left'><b>currency</b></td><td align='left'>ISO 4217</td><td align='left'><i>USD</i></td></tr><tr><td align='left'><b>page_token</b></td><td align='left'>next_page_token</td><td align='left'><i>—</i></td></tr></table></small>"]
         streamClient["<b>AlpacaStreamClient</b><br/><small>WS connect, auth, subscribe,<br/>unsubscribe, reconnect<br/>JSON → Bar, no changes</small>"]
@@ -339,8 +339,28 @@ flowchart TB
   - The caller (`CandleBackfiller`, `MarketClock`) handles both exceptions;
     ClientFeed never sees them.
 - `MarketClock` keeps the market status in memory, not in Redis. It calls
-  Alpaca `/v2/clock` at startup, again at the next open or close, and on a
-  periodic safety-net refresh.
+  Alpaca `GET /v2/clock` on the trading API (`alpaca.trading-base-url`):
+  - **Startup:** while the bean is created, so `getMarketStatus()` has a
+    value before the web server starts and before `CandleBackfiller` runs.
+    When Alpaca is unavailable it tries 3 times, waiting 2 s and then 4 s; if
+    it still fails, or Alpaca rejects the API keys, the backend does not
+    start.
+  - **At the next open or close:** 5 s after `next_close` when the market is
+    open, or `next_open` when it is closed, as Alpaca reported them. Early
+    closes and holidays therefore need no calendar of our own. The wait is
+    counted from Alpaca's `timestamp`, so a skewed server clock does not move
+    it; the 5 s keep timer and network delays from landing the call just
+    before the boundary. When the boundary has already passed, it waits 5 s.
+  - **Safety net:** every `alpaca.clock-refresh-interval` (15 min by
+    default).
+  - Every successful response replaces the held status and the pending
+    open/close call. A failed call (`AlpacaUnavailableException`,
+    `AlpacaConfigException`) is logged and keeps the old status; the next
+    safety-net call corrects it, so a failed call at the close leaves the
+    status wrong for at most one interval.
+  - `streamMarketStatus()` emits every response, safety-net ones included,
+    and gives a new subscriber the current status first, as
+    `stomp_contract.yaml` requires for `/topic/market/status`.
 - `StockRepository` loads the symbols from PostgreSQL at startup and keeps
   the list in memory. `AlpacaStreamClient` subscribes to them; other modules
   read them, with their company names, through `getTrackedStocks()`.

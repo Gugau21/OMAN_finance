@@ -169,6 +169,11 @@ migration; a migration that has already been applied is never edited.
   historical bars come straight from Alpaca. The Redis connect and command
   timeouts are 1 s (`SPRING_DATA_REDIS_CONNECT_TIMEOUT`,
   `SPRING_DATA_REDIS_TIMEOUT`).
+- The backend needs Alpaca to start: it fetches the market status from
+  `/v2/clock` before the web server starts. When Alpaca is unavailable it
+  tries 3 times, 2 s and then 4 s apart, and then exits; `restart: unless-stopped`
+  starts it again. Rejected API keys stop it the same way, with a message
+  naming `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY`.
 - Nginx has no Compose health check or explicit dependency on the backend in the
   production profile. The `/actuator/health` route is available for external
   monitoring through Nginx.

@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
+import reactor.core.Disposable;
+import reactor.core.Disposables;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
@@ -26,8 +28,12 @@ import reactor.core.scheduler.Schedulers;
  * <p>After each status, the next one is fetched {@link #BOUNDARY_MARGIN} after the next close (when
  * the market is open) or the next open (when it is closed), as Alpaca reported them, so early
  * closes and holidays need no calendar of our own. The wait is measured from the status's own
- * {@code timestamp}, so a skewed local clock does not move it. A failed refresh keeps the old
- * status.
+ * {@code timestamp}, so a skewed local clock does not move it.
+ *
+ * <p>On top of that, a safety-net refresh runs every {@code alpaca.clock-refresh-interval}. A
+ * failed refresh keeps the old status and schedules nothing, so after a failed call at the open or
+ * close, the next safety-net refresh corrects the status and schedules the next boundary again.
+ * Every successful refresh, safety-net ones included, replaces the pending boundary refresh.
  */
 @Component
 @Profile("!fake")
@@ -40,14 +46,14 @@ class MarketClock {
   static final Duration FIRST_RETRY_WAIT = Duration.ofSeconds(2);
 
   /**
-   * How long after the open or close to ask again. Exactly at the boundary, Alpaca can still report
-   * the old state.
+   * How long after the open or close to call Alpaca. Our timer and Alpaca's {@code timestamp} can
+   * be slightly out of step, and the margin keeps the call from landing just before the boundary.
    */
   static final Duration BOUNDARY_MARGIN = Duration.ofSeconds(5);
 
   /**
-   * The shortest wait before the next refresh, for when Alpaca still reports the old state after
-   * the boundary has passed.
+   * The shortest wait before the next boundary refresh, for when the boundary Alpaca reports has
+   * already passed; without it the refresh would run again at once, over and over.
    */
   static final Duration MIN_REFRESH_WAIT = Duration.ofSeconds(5);
 
@@ -56,25 +62,47 @@ class MarketClock {
   private final AlpacaClockClient client;
   private final Scheduler scheduler;
   private volatile Clock current;
+  private Disposable boundaryRefresh = Disposables.disposed();
 
   @Autowired
-  MarketClock(AlpacaClockClient client) {
-    this(client, Thread::sleep, Schedulers.newSingle("market-clock", true));
+  MarketClock(AlpacaClockClient client, AlpacaProperties properties) {
+    this(
+        client,
+        Thread::sleep,
+        Schedulers.newSingle("market-clock", true),
+        properties.clockRefreshInterval());
   }
 
   /**
    * @param sleeper waits between startup attempts; {@code Thread::sleep} outside tests
    * @param scheduler runs the refreshes; disposed by {@link #stop}
+   * @param refreshInterval how often the safety-net refresh runs
+   * @throws IllegalArgumentException when {@code refreshInterval} is not positive
    * @throws IllegalStateException when Alpaca is still unavailable after {@link #STARTUP_ATTEMPTS}
    *     attempts
    * @throws AlpacaConfigException at once when Alpaca rejects the API keys, since retrying cannot
    *     fix that
    */
-  MarketClock(AlpacaClockClient client, AlpacaErrorHandling.Sleeper sleeper, Scheduler scheduler) {
+  MarketClock(
+      AlpacaClockClient client,
+      AlpacaErrorHandling.Sleeper sleeper,
+      Scheduler scheduler,
+      Duration refreshInterval) {
+    if (refreshInterval == null || refreshInterval.isNegative() || refreshInterval.isZero()) {
+      throw new IllegalArgumentException(
+          "alpaca.clock-refresh-interval must be positive, was " + refreshInterval);
+    }
     this.client = client;
     this.scheduler = scheduler;
     this.current = fetchAtStartup(sleeper);
-    scheduleNextRefresh(current);
+    synchronized (this) {
+      scheduleBoundaryRefresh(current);
+    }
+    scheduler.schedulePeriodically(
+        this::refresh,
+        refreshInterval.toMillis(),
+        refreshInterval.toMillis(),
+        TimeUnit.MILLISECONDS);
   }
 
   /** The last market status Alpaca returned. Never null. */
@@ -82,15 +110,16 @@ class MarketClock {
     return current;
   }
 
-  /** Cancels the pending refresh when the application shuts down. */
+  /** Cancels the pending refreshes when the application shuts down. */
   @PreDestroy
   void stop() {
     scheduler.dispose();
   }
 
   /**
-   * Fetches the status again and schedules the refresh after it. When the fetch fails, the old
-   * status stays and nothing more is scheduled.
+   * Fetches the status again and replaces the pending boundary refresh with one for the new status.
+   * Runs at the open or close and on every safety-net refresh. When the fetch fails, the old status
+   * and the pending boundary refresh stay.
    */
   private synchronized void refresh() {
     Clock clock;
@@ -102,13 +131,15 @@ class MarketClock {
     }
     current = clock;
     log.info("Market status refreshed: {}", clock);
-    scheduleNextRefresh(clock);
+    scheduleBoundaryRefresh(clock);
   }
 
-  private void scheduleNextRefresh(Clock clock) {
+  /** Cancels the pending boundary refresh, if any, and schedules one for {@code clock}. */
+  private void scheduleBoundaryRefresh(Clock clock) {
     Duration wait = waitBeforeNextRefresh(clock);
-    scheduler.schedule(this::refresh, wait.toMillis(), TimeUnit.MILLISECONDS);
-    log.debug("Next market status refresh in {}", wait);
+    boundaryRefresh.dispose();
+    boundaryRefresh = scheduler.schedule(this::refresh, wait.toMillis(), TimeUnit.MILLISECONDS);
+    log.debug("Next market status refresh at the open or close in {}", wait);
   }
 
   /**

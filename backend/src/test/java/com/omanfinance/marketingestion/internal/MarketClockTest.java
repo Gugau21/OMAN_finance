@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.omanfinance.marketingestion.api.AlpacaConfigException;
@@ -43,6 +44,9 @@ class MarketClockTest {
           Instant.parse("2026-11-11T14:30:00Z"),
           Instant.parse("2026-11-10T21:00:00Z"));
 
+  /** Longer than any test runs, so only the tests about the safety net see it. */
+  private static final Duration NO_SAFETY_NET = Duration.ofDays(7);
+
   private final AlpacaClockClient client = mock(AlpacaClockClient.class);
   private final List<Duration> waits = new ArrayList<>();
   private final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create();
@@ -51,7 +55,7 @@ class MarketClockTest {
   void holdsTheStatusFetchedAtStartup() {
     when(client.fetch()).thenReturn(OPEN);
 
-    MarketClock clock = new MarketClock(client, waits::add, scheduler);
+    MarketClock clock = start();
 
     assertThat(clock.current()).isEqualTo(OPEN);
     assertThat(waits).isEmpty();
@@ -60,7 +64,7 @@ class MarketClockTest {
   @Test
   void doesNotAskAlpacaAgainWhenReadingTheStatus() {
     when(client.fetch()).thenReturn(OPEN);
-    MarketClock clock = new MarketClock(client, waits::add, scheduler);
+    MarketClock clock = start();
 
     clock.current();
     clock.current();
@@ -72,7 +76,7 @@ class MarketClockTest {
   void retriesWithGrowingWaitsWhenAlpacaIsUnavailableAtStartup() {
     when(client.fetch()).thenThrow(unavailable()).thenThrow(unavailable()).thenReturn(OPEN);
 
-    MarketClock clock = new MarketClock(client, waits::add, scheduler);
+    MarketClock clock = start();
 
     assertThat(clock.current()).isEqualTo(OPEN);
     assertThat(waits).containsExactly(Duration.ofSeconds(2), Duration.ofSeconds(4));
@@ -82,7 +86,7 @@ class MarketClockTest {
   void stopsStartupWhenAlpacaStaysUnavailable() {
     when(client.fetch()).thenThrow(unavailable());
 
-    assertThatThrownBy(() -> new MarketClock(client, waits::add, scheduler))
+    assertThatThrownBy(() -> start())
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("GET /v2/clock")
         .hasMessageContaining("3 attempts")
@@ -94,8 +98,7 @@ class MarketClockTest {
   void stopsStartupAtOnceWhenAlpacaRejectsTheKeys() {
     when(client.fetch()).thenThrow(new AlpacaConfigException("rejected"));
 
-    assertThatThrownBy(() -> new MarketClock(client, waits::add, scheduler))
-        .isInstanceOf(AlpacaConfigException.class);
+    assertThatThrownBy(() -> start()).isInstanceOf(AlpacaConfigException.class);
     verify(client, times(1)).fetch();
     assertThat(waits).isEmpty();
   }
@@ -103,7 +106,7 @@ class MarketClockTest {
   @Test
   void refreshesJustAfterTheCloseAndThenJustAfterTheOpen() {
     when(client.fetch()).thenReturn(OPEN, CLOSED, OPEN_NEXT_DAY);
-    MarketClock clock = new MarketClock(client, waits::add, scheduler);
+    MarketClock clock = start();
     Duration untilClose = Duration.between(OPEN.timestamp(), OPEN.nextClose());
 
     advance(untilClose.plus(MarketClock.BOUNDARY_MARGIN).minusMillis(1));
@@ -148,7 +151,7 @@ class MarketClockTest {
   @Test
   void keepsTheOldStatusWhenARefreshFails() {
     when(client.fetch()).thenReturn(OPEN).thenThrow(unavailable());
-    MarketClock clock = new MarketClock(client, waits::add, scheduler);
+    MarketClock clock = start();
 
     advance(Duration.ofDays(1));
 
@@ -159,13 +162,95 @@ class MarketClockTest {
   @Test
   void stopsRefreshingWhenStopped() {
     when(client.fetch()).thenReturn(OPEN, CLOSED);
-    MarketClock clock = new MarketClock(client, waits::add, scheduler);
+    MarketClock clock = start();
 
     clock.stop();
     advance(Duration.ofDays(1));
 
     assertThat(clock.current()).isEqualTo(OPEN);
     verify(client, times(1)).fetch();
+  }
+
+  @Test
+  void callsAlpacaOncePerResponseFromStartupThroughCloseAndOpenWithTwoSafetyNetRefreshes() {
+    // Safety net every 8 h from 15:15:30Z: 23:15:30Z and 07:15:30Z, both while closed.
+    when(client.fetch())
+        .thenReturn(
+            OPEN,
+            CLOSED,
+            closedAt("2026-11-09T23:15:30Z"),
+            closedAt("2026-11-10T07:15:30Z"),
+            OPEN_NEXT_DAY);
+    MarketClock clock = startWithRefreshEvery(Duration.ofHours(8));
+
+    advanceTo("2026-11-10T14:31:00Z");
+
+    // Each safety-net refresh replaces the pending open refresh; were they added instead, three
+    // would run at 14:30:05Z.
+    verify(client, times(5)).fetch();
+    assertThat(clock.current()).isEqualTo(OPEN_NEXT_DAY);
+  }
+
+  @Test
+  void safetyNetRefreshesEveryInterval() {
+    when(client.fetch()).thenReturn(OPEN);
+    startWithRefreshEvery(Duration.ofMinutes(15));
+
+    advance(Duration.ofHours(1));
+
+    verify(client, times(1 + 4)).fetch();
+  }
+
+  @Test
+  void safetyNetCorrectsTheStatusAfterAFailedCallAtTheClose() {
+    when(client.fetch())
+        .thenReturn(OPEN)
+        .thenThrow(unavailable())
+        .thenReturn(
+            closedAt("2026-11-09T23:15:30Z"), closedAt("2026-11-10T07:15:30Z"), OPEN_NEXT_DAY);
+    MarketClock clock = startWithRefreshEvery(Duration.ofHours(8));
+
+    advanceTo("2026-11-09T21:00:05Z");
+    assertThat(clock.current()).isEqualTo(OPEN);
+
+    advanceTo("2026-11-09T23:15:30Z");
+    assertThat(clock.current().isOpen()).isFalse();
+
+    advanceTo("2026-11-10T14:30:05Z");
+    assertThat(clock.current()).isEqualTo(OPEN_NEXT_DAY);
+    // startup, the failed call at the close, safety nets at 23:15:30Z and 07:15:30Z, the open
+    verify(client, times(5)).fetch();
+  }
+
+  @Test
+  void rejectsARefreshIntervalThatIsNotPositive() {
+    assertThatThrownBy(() -> startWithRefreshEvery(Duration.ZERO))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("alpaca.clock-refresh-interval");
+    verifyNoInteractions(client);
+  }
+
+  private MarketClock start() {
+    return startWithRefreshEvery(NO_SAFETY_NET);
+  }
+
+  private MarketClock startWithRefreshEvery(Duration refreshInterval) {
+    return new MarketClock(client, waits::add, scheduler, refreshInterval);
+  }
+
+  /** Closed on Monday evening or Tuesday morning, as Alpaca reports it at {@code timestamp}. */
+  private static Clock closedAt(String timestamp) {
+    return new Clock(
+        Instant.parse(timestamp),
+        false,
+        Instant.parse("2026-11-10T14:30:00Z"),
+        Instant.parse("2026-11-10T21:00:00Z"));
+  }
+
+  /** Moves virtual time to {@code instant}, counting from the startup status {@link #OPEN}. */
+  private void advanceTo(String instant) {
+    Duration sinceStartup = Duration.between(OPEN.timestamp(), Instant.parse(instant));
+    scheduler.advanceTimeTo(Instant.ofEpochMilli(sinceStartup.toMillis()));
   }
 
   private void advance(Duration duration) {

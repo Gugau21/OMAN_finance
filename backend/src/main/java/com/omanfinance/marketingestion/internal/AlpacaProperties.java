@@ -15,6 +15,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * whatever its {@code Retry-After} header says.
  *
  * <p>{@code barCacheRetention} is how long bars fetched from Alpaca stay cached in Redis.
+ *
+ * <p>{@code clockRefreshInterval} is how often the market status is fetched again from {@code
+ * /v2/clock}, on top of the calls at each open and close.
  */
 @ConfigurationProperties("alpaca")
 public record AlpacaProperties(
@@ -26,13 +29,15 @@ public record AlpacaProperties(
     Duration connectTimeout,
     Duration readTimeout,
     Duration maxRetryWait,
-    Duration barCacheRetention) {
+    Duration barCacheRetention,
+    Duration clockRefreshInterval) {
 
   /** Keeps the secret key out of logs. */
   @Override
   public String toString() {
     return ("AlpacaProperties[apiKeyId=%s, apiSecretKey=***, tradingBaseUrl=%s, dataBaseUrl=%s,"
-            + " streamUrl=%s, connectTimeout=%s, readTimeout=%s, maxRetryWait=%s, barCacheRetention=%s]")
+            + " streamUrl=%s, connectTimeout=%s, readTimeout=%s, maxRetryWait=%s, barCacheRetention=%s,"
+            + " clockRefreshInterval=%s]")
         .formatted(
             apiKeyId,
             tradingBaseUrl,
@@ -41,6 +46,7 @@ public record AlpacaProperties(
             connectTimeout,
             readTimeout,
             maxRetryWait,
-            barCacheRetention);
+            barCacheRetention,
+            clockRefreshInterval);
   }
 }
