@@ -24,6 +24,7 @@ jobs:
       SPRING_DATASOURCE_PASSWORD: password
       SPRING_DATA_REDIS_HOST: localhost
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_TIMEOUT: 10s
       ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
       ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
     steps:
