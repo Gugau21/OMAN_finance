@@ -49,7 +49,7 @@ class CachingBarsClientRedisDownTest {
   @Test
   void getsTheBarsFromAlpacaWhenReadingTheCacheFails(CapturedOutput output) {
     when(cache.readIfComplete(anyString(), any(), any())).thenThrow(redisDown());
-    when(alpaca.fetchAll(REQUEST)).thenReturn(FROM_ALPACA);
+    when(alpaca.fetchUpToLimit(REQUEST)).thenReturn(FROM_ALPACA);
 
     assertThat(client.getBars(REQUEST)).isEqualTo(FROM_ALPACA);
     assertThat(output).contains("Bar cache unavailable, getting bars from Alpaca");
@@ -59,7 +59,7 @@ class CachingBarsClientRedisDownTest {
   void returnsTheBarsFromAlpacaWhenSavingToTheCacheFails(CapturedOutput output) {
     when(cache.readIfComplete(anyString(), any(), any())).thenReturn(Optional.empty());
     doThrow(redisDown()).when(cache).save(anyString(), anyList(), any(), any());
-    when(alpaca.fetchAll(REQUEST)).thenReturn(FROM_ALPACA);
+    when(alpaca.fetchUpToLimit(REQUEST)).thenReturn(FROM_ALPACA);
 
     assertThat(client.getBars(REQUEST)).isEqualTo(FROM_ALPACA);
     assertThat(output).contains("Bar cache unavailable, bars from Alpaca not cached");
@@ -82,7 +82,7 @@ class CachingBarsClientRedisDownTest {
               new AlpacaProperties(
                   null, null, null, null, null, null, null, null, Duration.ofDays(7), null),
               CLOCK);
-      when(alpaca.fetchAll(REQUEST)).thenReturn(FROM_ALPACA);
+      when(alpaca.fetchUpToLimit(REQUEST)).thenReturn(FROM_ALPACA);
 
       BarsResponse response = new CachingBarsClient(alpaca, realCache, CLOCK).getBars(REQUEST);
 

@@ -107,8 +107,9 @@ public class FakeMarketIngestion implements MarketIngestion {
   /**
    * Bars for every requested symbol, tracked or not, for each completed minute in {@code [start,
    * end]}. A null {@code start} means the start of the current UTC day and a null {@code end} means
-   * now. {@code limit}, {@code adjustment}, {@code asof}, {@code currency} and {@code pageToken}
-   * are ignored.
+   * now. At most {@code limit} bars in total, counted across the symbols in request order, like the
+   * real adapter. {@code adjustment}, {@code asof}, {@code currency} and {@code pageToken} are
+   * ignored.
    *
    * @throws IllegalArgumentException if the timeframe is not {@link BarsRequest#ONE_MINUTE}
    */
@@ -128,6 +129,7 @@ public class FakeMarketIngestion implements MarketIngestion {
             : request.end();
 
     Map<String, List<Bar>> bars = new LinkedHashMap<>();
+    int missing = request.limit();
     for (String symbol : request.symbols()) {
       List<Bar> list = new ArrayList<>();
       for (Instant minute = from; !minute.isAfter(to); minute = minute.plus(MINUTE)) {
@@ -136,8 +138,10 @@ public class FakeMarketIngestion implements MarketIngestion {
       if (request.sort() == BarsRequest.Sort.DESC) {
         Collections.reverse(list);
       }
-      if (!list.isEmpty()) {
-        bars.put(symbol, list);
+      List<Bar> taken = list.subList(0, Math.min(missing, list.size()));
+      if (!taken.isEmpty()) {
+        bars.put(symbol, taken);
+        missing -= taken.size();
       }
     }
     return new BarsResponse(bars, null);

@@ -49,16 +49,18 @@ class CachingBarsClient {
     this.clock = clock;
   }
 
-  /** Every page of bars for {@code request}, merged, as {@link AlpacaBarsClient#fetchAll}. */
+  /**
+   * The first {@code limit} bars for {@code request}, as {@link AlpacaBarsClient#fetchUpToLimit}.
+   */
   BarsResponse getBars(BarsRequest request) {
     if (!isCacheable(request)) {
-      return alpaca.fetchAll(request);
+      return alpaca.fetchUpToLimit(request);
     }
     Optional<BarsResponse> cached = readFromCacheOrEmpty(request);
     if (cached.isPresent()) {
       return cached.get();
     }
-    BarsResponse fetched = alpaca.fetchAll(request);
+    BarsResponse fetched = alpaca.fetchUpToLimit(request);
     saveToCacheIfPossible(request, fetched);
     return fetched;
   }
@@ -107,9 +109,14 @@ class CachingBarsClient {
   /**
    * The cached bars for every symbol of {@code request}, or empty when any symbol misses a minute.
    * Like Alpaca, a symbol with no bars is left out.
+   *
+   * <p>A single symbol gets its first {@code limit} bars in {@code sort} order, as from Alpaca.
+   * Several symbols with more than {@code limit} bars in total are left to Alpaca: which bars it
+   * keeps then depends on how it orders the symbols.
    */
   private Optional<BarsResponse> readFromCache(BarsRequest request) {
     Map<String, List<Bar>> barsBySymbol = new LinkedHashMap<>();
+    int total = 0;
     for (String symbol : request.symbols()) {
       Optional<List<Bar>> cached = cache.readIfComplete(symbol, request.start(), request.end());
       if (cached.isEmpty()) {
@@ -118,8 +125,13 @@ class CachingBarsClient {
       List<Bar> bars = cached.get();
       if (!bars.isEmpty()) {
         // The cache reads oldest first.
-        barsBySymbol.put(symbol, request.sort() == Sort.DESC ? bars.reversed() : bars);
+        List<Bar> sorted = request.sort() == Sort.DESC ? bars.reversed() : bars;
+        barsBySymbol.put(symbol, sorted.subList(0, Math.min(request.limit(), sorted.size())));
+        total += bars.size();
       }
+    }
+    if (total > request.limit() && request.symbols().size() > 1) {
+      return Optional.empty();
     }
     return Optional.of(new BarsResponse(barsBySymbol, null));
   }
@@ -127,13 +139,32 @@ class CachingBarsClient {
   /**
    * Caches the bars Alpaca returned for {@code request}, every symbol from {@code start} up to the
    * last settled minute. Minutes after it are left out, so a later request fetches them again.
+   *
+   * <p>When Alpaca returned {@code limit} bars it may have stopped early, so only the minutes those
+   * bars reach are cached: for one symbol, up to its last bar in {@code sort} order; for several,
+   * nothing, because which symbols are complete depends on how Alpaca orders them.
    */
   private void saveToCache(BarsRequest request, BarsResponse fetched) {
     Instant from = request.start();
     Instant to = min(request.end(), lastSettledMinute());
-    if (to.isBefore(from)) {
-      return;
+    if (totalBars(fetched) >= request.limit()) {
+      if (request.symbols().size() > 1) {
+        return;
+      }
+      Instant lastBar = fetched.barsFor(request.symbols().getFirst()).getLast().timestamp();
+      if (request.sort() == Sort.ASC) {
+        to = min(to, lastBar);
+      } else {
+        from = lastBar;
+      }
     }
+    if (!to.isBefore(from)) {
+      saveRange(request, fetched, from, to);
+    }
+  }
+
+  /** Caches the bars of every symbol of {@code request} in {@code [from, to]}. */
+  private void saveRange(BarsRequest request, BarsResponse fetched, Instant from, Instant to) {
     for (String symbol : request.symbols()) {
       List<Bar> bars =
           fetched.barsFor(symbol).stream().filter(bar -> isInside(bar, from, to)).toList();
@@ -148,6 +179,10 @@ class CachingBarsClient {
   private Instant lastSettledMinute() {
     Instant settledUntil = clock.instant().minus(SETTLE_TIME);
     return settledUntil.truncatedTo(ChronoUnit.MINUTES).minus(MINUTE);
+  }
+
+  private static int totalBars(BarsResponse response) {
+    return response.bars().values().stream().mapToInt(List::size).sum();
   }
 
   private static boolean isWholeMinute(Instant time) {

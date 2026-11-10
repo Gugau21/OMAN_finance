@@ -3,15 +3,18 @@ package com.omanfinance.marketfeed.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.omanfinance.TestRedisDatabase;
 import com.omanfinance.marketfeed.MarketDataNotReadyException;
 import com.omanfinance.marketfeed.StockNotFoundException;
 import com.omanfinance.marketingestion.api.AlpacaUnavailableException;
 import com.omanfinance.marketingestion.internal.StubAlpacaClock;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
@@ -23,12 +26,19 @@ import org.springframework.web.bind.annotation.RestController;
  * Runs on a real server port: MockMvc does not forward {@code sendError} to {@code /error}, so it
  * would not show the error body.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = TestRedisDatabase.PROPERTY)
 @ActiveProfiles("fake")
 @Import({StubAlpacaClock.Config.class, ApiExceptionHandlerTest.ThrowingController.class})
 class ApiExceptionHandlerTest {
 
   @Autowired private TestRestTemplate rest;
+
+  @AfterAll
+  static void deleteWhatStartupSaved(@Autowired StringRedisTemplate redis) {
+    TestRedisDatabase.flush(redis);
+  }
 
   @Test
   void answersNotReadyWith503AndTheDefaultErrorBody() {

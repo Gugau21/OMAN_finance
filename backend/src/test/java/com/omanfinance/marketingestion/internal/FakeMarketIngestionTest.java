@@ -126,6 +126,51 @@ class FakeMarketIngestionTest {
   }
 
   @Test
+  void returnsTheNewestLimitBarsWhenSortedDescending() {
+    BarsRequest request =
+        new BarsRequest(
+            List.of("AAPL"),
+            BarsRequest.ONE_MINUTE,
+            Instant.parse("2026-11-01T00:00:00Z"),
+            NOW,
+            2,
+            BarsRequest.Sort.DESC,
+            null,
+            null,
+            null,
+            null);
+
+    assertThat(fake.getBars(request).barsFor("AAPL"))
+        .extracting(Bar::timestamp)
+        .containsExactly(
+            Instant.parse("2026-11-05T15:41:00Z"), Instant.parse("2026-11-05T15:40:00Z"));
+  }
+
+  @Test
+  void countsTheLimitAcrossSymbolsInRequestOrder() {
+    BarsRequest request =
+        new BarsRequest(
+            List.of("MSFT", "AAPL", "KO"),
+            BarsRequest.ONE_MINUTE,
+            Instant.parse("2026-11-05T15:30:00Z"),
+            Instant.parse("2026-11-05T15:31:00Z"),
+            3,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    BarsResponse response = fake.getBars(request);
+
+    assertThat(response.bars()).containsOnlyKeys("MSFT", "AAPL");
+    assertThat(response.barsFor("MSFT")).hasSize(2);
+    assertThat(response.barsFor("AAPL"))
+        .extracting(Bar::timestamp)
+        .containsExactly(Instant.parse("2026-11-05T15:30:00Z"));
+  }
+
+  @Test
   void leavesOutSymbolsWithNoBarsInRange() {
     BarsResponse response =
         fake.getBars(
