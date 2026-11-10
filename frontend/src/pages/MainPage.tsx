@@ -17,7 +17,11 @@ type CombinedStockData = {
   sparkline: PricePoint[];
 };
 
-export function MainPage() {
+type MainPageProps = {
+  onStockSelect: (symbol: string) => void;
+};
+
+export function MainPage({ onStockSelect }: MainPageProps) {
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [marketDate, setMarketDate] = useState<string>('');
   const [stocksData, setStocksData] = useState<CombinedStockData[]>([]);
@@ -221,7 +225,10 @@ export function MainPage() {
                     >
                       <td className="py-3 px-2">
                         <div className="flex flex-col items-start gap-1">
-                          <button className="text-purple-700 font-bold text-xs hover:underline focus:outline-none">
+                          <button
+                            onClick={() => onStockSelect(row.symbol)}
+                            className="text-purple-700 font-bold text-xs hover:underline focus:outline-none"
+                          >
                             {row.symbol}
                           </button>
                           <span className="text-gray-500 text-[9px]">{row.name}</span>
