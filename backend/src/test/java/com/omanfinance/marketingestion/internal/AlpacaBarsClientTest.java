@@ -170,16 +170,37 @@ class AlpacaBarsClientTest {
   }
 
   @Test
-  void followsNextPageTokenAndAppendsBarsSplitAcrossPages() {
-    // limit=3 counts bars across both symbols: AAPL's 4 bars span pages 1-2, MSFT's 3 pages 2-3.
+  void stopsAfterThePageThatHoldsLimitBarsEvenWithANextPageToken() {
+    // Only one request is expected: a second one would fail the test.
     server
-        .expect(request -> assertThat(decodedQuery(request)).doesNotContainKey("page_token"))
+        .expect(request -> assertThat(decodedQuery(request)).containsEntry("limit", "3"))
         .andRespond(
             withSuccess(
                 """
                 {"bars": {"AAPL": [{"t": "2026-11-05T14:30:00Z"},
                                    {"t": "2026-11-05T14:31:00Z"},
                                    {"t": "2026-11-05T14:32:00Z"}]},
+                 "next_page_token": "page-2"}
+                """,
+                MediaType.APPLICATION_JSON));
+
+    BarsResponse response = client.fetchUpToLimit(request(List.of("AAPL", "MSFT"), 3));
+
+    server.verify();
+    assertThat(response.barsFor("AAPL")).hasSize(3);
+    assertThat(response.nextPageToken()).isNull();
+  }
+
+  @Test
+  void followsNextPageTokenAfterAShortPageAndDropsBarsPastLimit() {
+    // limit=4 counts bars across both symbols. Page 1 is short, page 2 brings the total to 5:
+    // AAPL's bars span both pages, MSFT's second bar is past the limit and page 3 is not fetched.
+    server
+        .expect(request -> assertThat(decodedQuery(request)).doesNotContainKey("page_token"))
+        .andRespond(
+            withSuccess(
+                """
+                {"bars": {"AAPL": [{"t": "2026-11-05T14:30:00Z"}, {"t": "2026-11-05T14:31:00Z"}]},
                  "next_page_token": "page-2"}
                 """,
                 MediaType.APPLICATION_JSON));
@@ -190,37 +211,17 @@ class AlpacaBarsClientTest {
                     .containsEntry("page_token", "page-2")
                     .containsEntry("symbols", "AAPL,MSFT")
                     .containsEntry("start", "2026-11-05T14:30:00Z")
-                    .containsEntry("limit", "3"))
+                    .containsEntry("limit", "4"))
         .andRespond(
             withSuccess(
                 """
-                {"bars": {"AAPL": [{"t": "2026-11-05T14:33:00Z"}],
+                {"bars": {"AAPL": [{"t": "2026-11-05T14:32:00Z"}],
                           "MSFT": [{"t": "2026-11-05T14:30:00Z"}, {"t": "2026-11-05T14:31:00Z"}]},
                  "next_page_token": "page-3"}
                 """,
                 MediaType.APPLICATION_JSON));
-    server
-        .expect(request -> assertThat(decodedQuery(request)).containsEntry("page_token", "page-3"))
-        .andRespond(
-            withSuccess(
-                """
-                {"bars": {"MSFT": [{"t": "2026-11-05T14:32:00Z"}]}, "next_page_token": null}
-                """,
-                MediaType.APPLICATION_JSON));
 
-    BarsResponse response =
-        client.fetchAll(
-            new BarsRequest(
-                List.of("AAPL", "MSFT"),
-                BarsRequest.ONE_MINUTE,
-                START,
-                END,
-                3,
-                null,
-                null,
-                null,
-                null,
-                null));
+    BarsResponse response = client.fetchUpToLimit(request(List.of("AAPL", "MSFT"), 4));
 
     server.verify();
     assertThat(response.bars()).containsOnlyKeys("AAPL", "MSFT");
@@ -229,14 +230,10 @@ class AlpacaBarsClientTest {
         .containsExactly(
             tuple("AAPL", Instant.parse("2026-11-05T14:30:00Z")),
             tuple("AAPL", Instant.parse("2026-11-05T14:31:00Z")),
-            tuple("AAPL", Instant.parse("2026-11-05T14:32:00Z")),
-            tuple("AAPL", Instant.parse("2026-11-05T14:33:00Z")));
+            tuple("AAPL", Instant.parse("2026-11-05T14:32:00Z")));
     assertThat(response.barsFor("MSFT"))
         .extracting(Bar::symbol, Bar::timestamp)
-        .containsExactly(
-            tuple("MSFT", Instant.parse("2026-11-05T14:30:00Z")),
-            tuple("MSFT", Instant.parse("2026-11-05T14:31:00Z")),
-            tuple("MSFT", Instant.parse("2026-11-05T14:32:00Z")));
+        .containsExactly(tuple("MSFT", Instant.parse("2026-11-05T14:30:00Z")));
     assertThat(response.nextPageToken()).isNull();
   }
 
@@ -252,11 +249,16 @@ class AlpacaBarsClientTest {
                 MediaType.APPLICATION_JSON));
 
     BarsResponse response =
-        client.fetchAll(BarsRequest.of(List.of("AAPL"), BarsRequest.ONE_MINUTE, START, END));
+        client.fetchUpToLimit(BarsRequest.of(List.of("AAPL"), BarsRequest.ONE_MINUTE, START, END));
 
     server.verify();
     assertThat(response.barsFor("AAPL")).hasSize(1);
     assertThat(response.nextPageToken()).isNull();
+  }
+
+  private static BarsRequest request(List<String> symbols, int limit) {
+    return new BarsRequest(
+        symbols, BarsRequest.ONE_MINUTE, START, END, limit, null, null, null, null, null);
   }
 
   /** The query of {@code request} with every value decoded, as Alpaca reads it. */

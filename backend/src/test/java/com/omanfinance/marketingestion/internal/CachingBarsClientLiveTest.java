@@ -2,7 +2,6 @@ package com.omanfinance.marketingestion.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -98,7 +97,7 @@ class CachingBarsClientLiveTest {
 
     print("from Alpaca", fromAlpaca);
     print("from Redis", fromRedis);
-    verify(alpaca, times(1)).fetchAll(any());
+    verify(alpaca, times(1)).fetchUpToLimit(any());
     assertThat(fromAlpaca.bars()).containsOnlyKeys(SYMBOLS);
     assertThat(fromRedis).isEqualTo(fromAlpaca);
   }
@@ -113,16 +112,22 @@ class CachingBarsClientLiveTest {
   }
 
   @Test
-  void cachesEveryPageWhenTheLimitSplitsTheResponse() {
-    BarsRequest request =
+  void stopsAtTheLimitWithOneRequestAndCachesOnlyTheMinutesItReached() {
+    BarsRequest limited =
         new BarsRequest(
-            SYMBOLS, BarsRequest.ONE_MINUTE, START, END, 2, null, null, null, null, null);
+            List.of("SPY"), BarsRequest.ONE_MINUTE, START, END, 2, null, null, null, null, null);
+    Instant secondMinute = START.plusSeconds(60);
 
-    BarsResponse fromAlpaca = client.getBars(request);
-    BarsResponse fromRedis = client.getBars(request);
+    BarsResponse fromAlpaca = client.getBars(limited);
+    BarsResponse fromRedis =
+        client.getBars(BarsRequest.of(List.of("SPY"), BarsRequest.ONE_MINUTE, START, secondMinute));
 
-    verify(alpaca, times(1)).fetchAll(any());
-    verify(alpaca, atLeast(2)).fetchPage(any());
+    verify(alpaca, times(1)).fetchUpToLimit(any());
+    verify(alpaca, times(1)).fetchPage(any());
+    // SPY trades every minute, so the two bars are the first two minutes.
+    assertThat(fromAlpaca.barsFor("SPY"))
+        .extracting(Bar::timestamp)
+        .containsExactly(START, secondMinute);
     assertThat(fromRedis).isEqualTo(fromAlpaca);
   }
 

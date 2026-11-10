@@ -50,28 +50,43 @@ class AlpacaBarsClient {
   }
 
   /**
-   * Fetches every page of bars that {@code request} describes, following {@code next_page_token}
-   * until Alpaca has no more pages, and returns them merged in one response with a null {@code
-   * nextPageToken}.
+   * Fetches the first {@code limit} bars that {@code request} describes, in Alpaca's order, and
+   * returns them in one response with a null {@code nextPageToken}. Fewer when Alpaca has fewer.
    *
-   * <p>Alpaca's {@code limit} counts bars across all symbols, so one symbol's bars can be split
-   * across two pages; they are appended in the order the pages arrive.
+   * <p>Alpaca's {@code limit} is a page size: a page holds at most that many bars, counted across
+   * all symbols, so one page is usually enough. Alpaca may still return a shorter page with a
+   * {@code next_page_token}; then the next pages are fetched until there are {@code limit} bars or
+   * no more pages, and bars past {@code limit} are dropped. A symbol's bars split across two pages
+   * are appended in the order the pages arrive.
    */
-  BarsResponse fetchAll(BarsRequest request) {
+  BarsResponse fetchUpToLimit(BarsRequest request) {
     Map<String, List<Bar>> merged = new LinkedHashMap<>();
     BarsResponse page = fetchPage(request);
-    appendTo(merged, page);
-    while (page.hasNextPage()) {
+    int missing = appendTo(merged, page, request.limit());
+    while (missing > 0 && page.hasNextPage()) {
       page = fetchPage(request.withPageToken(page.nextPageToken()));
-      appendTo(merged, page);
+      missing = appendTo(merged, page, missing);
     }
     return new BarsResponse(merged, null);
   }
 
-  private static void appendTo(Map<String, List<Bar>> merged, BarsResponse page) {
-    page.bars()
-        .forEach(
-            (symbol, bars) -> merged.computeIfAbsent(symbol, s -> new ArrayList<>()).addAll(bars));
+  /**
+   * Appends at most {@code max} bars of {@code page} to {@code merged}, in page order.
+   *
+   * @return how many of the {@code max} bars are still missing
+   */
+  private static int appendTo(Map<String, List<Bar>> merged, BarsResponse page, int max) {
+    int missing = max;
+    for (Map.Entry<String, List<Bar>> entry : page.bars().entrySet()) {
+      if (missing == 0) {
+        break;
+      }
+      List<Bar> bars = entry.getValue();
+      List<Bar> taken = bars.subList(0, Math.min(missing, bars.size()));
+      merged.computeIfAbsent(entry.getKey(), s -> new ArrayList<>()).addAll(taken);
+      missing -= taken.size();
+    }
+    return missing;
   }
 
   /** The query parameters for {@code request}, leaving out the optional ones that are null. */

@@ -190,6 +190,73 @@ class CachingBarsClientTest {
     assertThat(redis.hasKey(BarRedisRepository.keyOf(A))).isFalse();
   }
 
+  @Test
+  void answersOnlyTheFirstLimitBarsInSortOrderFromTheCache() throws Exception {
+    alpacaAnswers(
+        once(),
+        new BarsResponse(
+            Map.of(A, List.of(bar(A, T0, "1"), bar(A, T1, "2"), bar(A, T2, "3"))), null));
+    client.getBars(request(List.of(A), T0, T5));
+
+    BarsResponse fromCache = client.getBars(request(List.of(A), T0, T5, Sort.DESC, 2));
+
+    alpaca.verify();
+    assertThat(fromCache.barsFor(A)).containsExactly(bar(A, T2, "3"), bar(A, T1, "2"));
+  }
+
+  @Test
+  void asksAlpacaWhenTheCachedBarsOfSeveralSymbolsAreMoreThanLimit() throws Exception {
+    // Which bars Alpaca keeps then depends on how it orders the symbols.
+    alpacaAnswers(
+        times(2),
+        new BarsResponse(Map.of(A, List.of(bar(A, T0, "1")), B, List.of(bar(B, T0, "2"))), null));
+    client.getBars(request(List.of(A, B), T0, T5));
+
+    client.getBars(request(List.of(A, B), T0, T5, Sort.ASC, 1));
+
+    alpaca.verify();
+  }
+
+  @Test
+  void cachesAnAscendingResponseCutByTheLimitOnlyUpToItsLastBar() throws Exception {
+    alpacaAnswers(
+        times(2), new BarsResponse(Map.of(A, List.of(bar(A, T0, "1"), bar(A, T1, "2"))), null));
+
+    client.getBars(request(List.of(A), T0, T10, Sort.ASC, 2));
+    BarsResponse reached = client.getBars(request(List.of(A), T0, T1));
+    client.getBars(request(List.of(A), T0, T2));
+
+    alpaca.verify();
+    assertThat(reached.barsFor(A)).containsExactly(bar(A, T0, "1"), bar(A, T1, "2"));
+  }
+
+  @Test
+  void cachesADescendingResponseCutByTheLimitOnlyFromItsLastBar() throws Exception {
+    // Newest first: T10, then T5, so T6-T9 had no trades and T0-T4 were not fetched.
+    alpacaAnswers(
+        times(2), new BarsResponse(Map.of(A, List.of(bar(A, T10, "2"), bar(A, T5, "1"))), null));
+
+    client.getBars(request(List.of(A), T0, T10, Sort.DESC, 2));
+    BarsResponse reached = client.getBars(request(List.of(A), T5, T10));
+    client.getBars(request(List.of(A), T0, T10));
+
+    alpaca.verify();
+    assertThat(reached.barsFor(A)).containsExactly(bar(A, T5, "1"), bar(A, T10, "2"));
+  }
+
+  @Test
+  void cachesNothingWhenTheLimitCutsAResponseForSeveralSymbols() throws Exception {
+    alpacaAnswers(
+        once(),
+        new BarsResponse(Map.of(A, List.of(bar(A, T0, "1")), B, List.of(bar(B, T0, "2"))), null));
+
+    client.getBars(request(List.of(A, B), T0, T5, Sort.ASC, 2));
+
+    alpaca.verify();
+    assertThat(redis.hasKey(BarRedisRepository.keyOf(A))).isFalse();
+    assertThat(redis.hasKey(BarRedisRepository.keyOf(B))).isFalse();
+  }
+
   private void alpacaAnswers(ExpectedCount count, BarsResponse response)
       throws JsonProcessingException {
     alpaca
@@ -205,6 +272,12 @@ class CachingBarsClientTest {
       List<String> symbols, Instant start, Instant end, Sort sort, Adjustment adjustment) {
     return new BarsRequest(
         symbols, BarsRequest.ONE_MINUTE, start, end, null, sort, adjustment, null, null, null);
+  }
+
+  private static BarsRequest request(
+      List<String> symbols, Instant start, Instant end, Sort sort, int limit) {
+    return new BarsRequest(
+        symbols, BarsRequest.ONE_MINUTE, start, end, limit, sort, null, null, null, null);
   }
 
   private static Bar bar(String symbol, Instant t, String close) {

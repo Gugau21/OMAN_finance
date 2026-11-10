@@ -24,9 +24,11 @@ public interface MarketIngestion {
 
   /**
    * Historical bars from Alpaca {@code GET /v2/stocks/bars}, or from the raw bar cache when it
-   * already holds the whole requested range. Follows {@code next_page_token} until Alpaca has no
-   * more pages and returns them all in one response, so its {@code nextPageToken} is always null.
-   * Blocks until the bars are available.
+   * already holds the whole requested range. Returns the first {@code limit} bars in {@code sort}
+   * order, counted across all symbols as Alpaca counts them, or fewer when there are fewer. Asking
+   * {@code sort=DESC} with {@code limit=n} gets the newest {@code n} bars of the range. Alpaca's
+   * {@code next_page_token} is followed only while fewer than {@code limit} bars have arrived, and
+   * the response's {@code nextPageToken} is always null. Blocks until the bars are available.
    *
    * @throws AlpacaUnavailableException when Alpaca returns 5xx, does not answer in time, or still
    *     returns 429 after one retry (the retry waits for {@code Retry-After}, at most {@code
