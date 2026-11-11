@@ -21,3 +21,14 @@ export type StockStat = {
   changePercent: number;
   volume: number;
 };
+
+export type MainPageStock = {
+  symbol: string;
+  name: string;
+  timestamp: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  pricePoints: PricePoint[];
+};
