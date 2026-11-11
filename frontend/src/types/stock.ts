@@ -36,6 +36,20 @@ export type StockCandles = {
   candles: Candle[];
 };
 
+export type StockPricePoint = {
+  timestamp: string;
+  price: number;
+  volume: number;
+};
+
+export type StockSparkline = StockPricePoint[];
+
+export type StockPageView = {
+  candles: StockCandles;
+  stat: StockStat;
+  sparkline: StockSparkline;
+};
+
 export type MainPageStock = {
   symbol: string;
   name: string;
