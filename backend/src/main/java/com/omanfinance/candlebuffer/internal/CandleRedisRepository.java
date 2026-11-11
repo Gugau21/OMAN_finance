@@ -28,8 +28,11 @@ class CandleRedisRepository {
     this.objectMapper = objectMapper;
   }
 
-  void saveCandles(String symbol, List<Candle> candles) {
-    String key = "candles:" + symbol;
+  void saveCandles(List<Candle> candles) {
+    if (candles == null || candles.isEmpty()) {
+      return;
+    }
+    String key = "candles:" + candles.getLast().symbol();
 
     redis.execute(
         new SessionCallback<Object>() {
@@ -49,8 +52,8 @@ class CandleRedisRepository {
         });
   }
 
-  void saveCandle(String symbol, Candle candle) {
-    saveCandles(symbol, List.of(candle));
+  void saveCandle(Candle candle) {
+    saveCandles(List.of(candle));
   }
 
   /**

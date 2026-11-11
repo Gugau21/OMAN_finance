@@ -50,7 +50,7 @@ class CandleRedisRepositoryTest {
     Instant openTime = Instant.parse("2026-11-06T15:30:00Z");
     Candle candle = candle(SYMBOL, openTime, "1", "2", "0.5", "1.5", 100L);
 
-    repository.saveCandle(SYMBOL, candle);
+    repository.saveCandle(candle);
 
     List<Candle> last = repository.getLastCandles(SYMBOL, 1);
     assertThat(last).hasSize(1);
@@ -65,7 +65,7 @@ class CandleRedisRepositoryTest {
 
     for (int i = 0; i <= 60; i++) {
       Instant t = base.plusSeconds(60L * i);
-      repository.saveCandle(SYMBOL, candle(SYMBOL, t, "10", "11", "9", "10", 1000L + i));
+      repository.saveCandle(candle(SYMBOL, t, "10", "11", "9", "10", 1000L + i));
     }
 
     List<Candle> last60 = repository.getLastCandles(SYMBOL, 60);
@@ -81,9 +81,9 @@ class CandleRedisRepositoryTest {
     Instant t1 = Instant.parse("2026-11-06T12:01:00Z");
     Instant t2 = Instant.parse("2026-11-06T12:02:00Z");
 
-    repository.saveCandle(SYMBOL, candle(SYMBOL, t0, "1", "1", "1", "1", 1L));
-    repository.saveCandle(SYMBOL, candle(SYMBOL, t1, "2", "2", "2", "2", 2L));
-    repository.saveCandle(SYMBOL, candle(SYMBOL, t2, "3", "3", "3", "3", 3L));
+    repository.saveCandle(candle(SYMBOL, t0, "1", "1", "1", "1", 1L));
+    repository.saveCandle(candle(SYMBOL, t1, "2", "2", "2", "2", 2L));
+    repository.saveCandle(candle(SYMBOL, t2, "3", "3", "3", "3", 3L));
 
     List<Candle> two = repository.getLastCandles(SYMBOL, 2);
 
