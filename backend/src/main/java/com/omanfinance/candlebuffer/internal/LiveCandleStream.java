@@ -11,6 +11,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
+import reactor.core.publisher.Sinks.Many;
 
 @Component
 class LiveCandleStream {
@@ -22,16 +25,16 @@ class LiveCandleStream {
 
   private Disposable subscription;
 
+  /** Late subscribers only see candles emitted after they subscribe. */
+  private final Many<Candle> candleSink = Sinks.many().multicast().onBackpressureBuffer();
+
   public LiveCandleStream(MarketIngestion marketIngestion, CandleRedisRepository redis) {
     this.marketIngestion = marketIngestion;
     this.redis = redis;
   }
 
-  @PreDestroy
-  void stop() {
-    if (subscription != null) {
-      subscription.dispose();
-    }
+  Flux<Candle> streamCandles() {
+    return candleSink.asFlux();
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -43,6 +46,13 @@ class LiveCandleStream {
             .subscribe(this::onBar, err -> log.error("streamBars() failed", err));
   }
 
+  @PreDestroy
+  void stop() {
+    if (subscription != null) {
+      subscription.dispose();
+    }
+  }
+
   private void onBar(Bar bar) {
     Candle candle = Candle.fromBar(bar);
     try {
@@ -50,6 +60,11 @@ class LiveCandleStream {
     } catch (CandleRedisRuntimeException e) {
       log.warn("failed to save candle for {}", candle.symbol(), e);
       return;
+    }
+
+    Sinks.EmitResult result = candleSink.tryEmitNext(candle);
+    if (result.isFailure()) {
+      log.warn("failed to emit candle for {}: {}", candle.symbol(), result);
     }
   }
 }
