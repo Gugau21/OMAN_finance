@@ -142,6 +142,28 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /api/stocks/{symbol}/stat:
+    get:
+      tags: [Stocks]
+      operationId: getStockStat
+      summary: Get the latest price and 60-minute change for a stock
+      description: |
+        Returns the most recent price, the change over the last 60 minutes and
+        the volume of one stock.
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+      responses:
+        "200":
+          description: One stat entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockStat"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
 components:
   parameters:
     Symbol:
