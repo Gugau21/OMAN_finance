@@ -28,8 +28,8 @@ export function MainPage({ onStockSelect }: MainPageProps) {
         // 3. Add 'as const' to strictly type the Promise array
         const [status, combinedStocks] = await Promise.all([
           getMarketStatus({ signal: controller.signal }),
-          getMainPageStocks(controller.signal)
-        ] as const); 
+          getMainPageStocks(controller.signal),
+        ] as const);
 
         if (status) {
           setMarketStatus(status);
@@ -121,7 +121,7 @@ export function MainPage({ onStockSelect }: MainPageProps) {
                 <th className="py-3 px-4 font-medium text-right">1-hour trend</th>
               </tr>
             </thead>
-            
+
             {isLoading && (
               <tbody className="text-sm bg-white">
                 {[1, 2, 3, 4].map((item) => (
@@ -132,11 +132,21 @@ export function MainPage({ onStockSelect }: MainPageProps) {
                         <div className="w-24 h-3 bg-gray-100 rounded animate-pulse"></div>
                       </div>
                     </td>
-                    <td className="py-4 px-4"><div className="w-16 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
-                    <td className="py-4 px-4"><div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
-                    <td className="py-4 px-4"><div className="w-14 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
-                    <td className="py-4 px-4"><div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div></td>
-                    <td className="py-4 px-4"><div className="w-20 h-8 bg-gray-100 rounded animate-pulse ml-auto"></div></td>
+                    <td className="py-4 px-4">
+                      <div className="w-16 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="w-14 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="w-12 h-4 bg-gray-200 rounded animate-pulse ml-auto"></div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="w-20 h-8 bg-gray-100 rounded animate-pulse ml-auto"></div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -160,8 +170,12 @@ export function MainPage({ onStockSelect }: MainPageProps) {
                 <tr>
                   <td colSpan={6} className="py-16 px-4">
                     <div className="flex flex-col items-center justify-center text-center">
-                      <span className="text-gray-900 font-medium text-sm mb-1">No Stocks Available</span>
-                      <span className="text-gray-500 text-xs">The market data is currently empty.</span>
+                      <span className="text-gray-900 font-medium text-sm mb-1">
+                        No Stocks Available
+                      </span>
+                      <span className="text-gray-500 text-xs">
+                        The market data is currently empty.
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -182,7 +196,7 @@ export function MainPage({ onStockSelect }: MainPageProps) {
                     >
                       <td className="py-4 px-4">
                         <div className="flex flex-col items-start gap-1">
-                          <button 
+                          <button
                             onClick={() => onStockSelect(row.symbol)}
                             className="text-purple-700 font-bold text-sm hover:text-purple-900 hover:underline focus:outline-none transition-colors"
                           >
@@ -195,10 +209,12 @@ export function MainPage({ onStockSelect }: MainPageProps) {
                         ${row.price.toFixed(2)}
                       </td>
                       <td className={`py-4 px-4 text-right font-medium ${colorClass}`}>
-                        {isPositive ? '+' : ''}{row.change.toFixed(2)}
+                        {isPositive ? '+' : ''}
+                        {row.change.toFixed(2)}
                       </td>
                       <td className={`py-4 px-4 text-right font-semibold ${colorClass}`}>
-                        {isPositive ? '+' : ''}{row.changePercent.toFixed(2)}%
+                        {isPositive ? '+' : ''}
+                        {row.changePercent.toFixed(2)}%
                       </td>
                       <td className="py-4 px-4 text-right text-gray-600">
                         {formatVolume(row.volume)}
@@ -213,7 +229,7 @@ export function MainPage({ onStockSelect }: MainPageProps) {
                               stroke={strokeColor}
                               strokeWidth={2}
                               dot={false}
-                              activeDot={false} 
+                              activeDot={false}
                               isAnimationActive={false}
                             />
                           </LineChart>
