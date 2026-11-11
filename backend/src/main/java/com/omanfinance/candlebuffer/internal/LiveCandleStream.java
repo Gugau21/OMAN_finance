@@ -47,7 +47,7 @@ class LiveCandleStream {
     Candle candle = Candle.fromBar(bar);
     try {
       redis.saveCandle(candle);
-    } catch (RuntimeException e) {
+    } catch (CandleRedisRuntimeException e) {
       log.warn("failed to save candle for {}", candle.symbol(), e);
       return;
     }
