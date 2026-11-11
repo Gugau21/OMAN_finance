@@ -22,6 +22,20 @@ export type StockStat = {
   volume: number;
 };
 
+export type Candle = {
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+export type StockCandles = {
+  symbol: string;
+  candles: Candle[];
+};
+
 export type MainPageStock = {
   symbol: string;
   name: string;

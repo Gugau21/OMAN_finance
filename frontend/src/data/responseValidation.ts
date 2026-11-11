@@ -1,5 +1,5 @@
 import type { MarketStatus } from '../types/market';
-import type { PricePoint, Sparkline, Stock, StockStat } from '../types/stock';
+import type { Candle, PricePoint, Sparkline, Stock, StockCandles, StockStat } from '../types/stock';
 
 const rfc3339DateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -46,6 +46,28 @@ export function parseStockStats(value: unknown): StockStat[] {
   return value;
 }
 
+export function parseStockStat(value: unknown): StockStat {
+  if (!isStockStat(value)) {
+    throw new Error('Stock stat response has an invalid shape');
+  }
+
+  return value;
+}
+
+export function parseStockCandles(value: unknown): StockCandles {
+  if (
+    !isRecord(value) ||
+    !isNonEmptyString(value.symbol) ||
+    !Array.isArray(value.candles) ||
+    value.candles.length !== 60 ||
+    !value.candles.every(isCandle)
+  ) {
+    throw new Error('Stock candles response has an invalid shape');
+  }
+
+  return value;
+}
+
 function isStock(value: unknown): value is Stock {
   return isRecord(value) && isNonEmptyString(value.symbol) && isNonEmptyString(value.name);
 }
@@ -74,6 +96,18 @@ function isStockStat(value: unknown): value is StockStat {
 
 function isPricePoint(value: unknown): value is PricePoint {
   return isRecord(value) && isDateTime(value.timestamp) && isFiniteNumber(value.price);
+}
+
+function isCandle(value: unknown): value is Candle {
+  return (
+    isRecord(value) &&
+    isDateTime(value.timestamp) &&
+    isFiniteNumber(value.open) &&
+    isFiniteNumber(value.high) &&
+    isFiniteNumber(value.low) &&
+    isFiniteNumber(value.close) &&
+    isNonNegativeInteger(value.volume)
+  );
 }
 
 function isFiniteNumber(value: unknown): value is number {
