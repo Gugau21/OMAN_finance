@@ -55,17 +55,21 @@ export function parseStockStat(value: unknown): StockStat {
 }
 
 export function parseStockCandles(value: unknown): StockCandles {
-  if (
-    !isRecord(value) ||
-    !isNonEmptyString(value.symbol) ||
-    !Array.isArray(value.candles) ||
-    value.candles.length !== 60 ||
-    !value.candles.every(isCandle)
-  ) {
+  if (!isStockCandles(value)) {
     throw new Error('Stock candles response has an invalid shape');
   }
 
   return value;
+}
+
+function isStockCandles(value: unknown): value is StockCandles {
+  return (
+    isRecord(value) &&
+    isNonEmptyString(value.symbol) &&
+    Array.isArray(value.candles) &&
+    value.candles.length === 60 &&
+    value.candles.every(isCandle)
+  );
 }
 
 function isStock(value: unknown): value is Stock {
