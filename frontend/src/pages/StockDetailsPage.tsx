@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getStocks } from '../data/stocksData';
-import { getStockStats } from '../data/stockStatsData';
-import { getSparklines } from '../data/sparklinesData';
-import type { PricePoint } from '../types/stock';
+import { getStockPageData } from '../data/stockPageData';
+import type { StockPageView } from '../types/stock';
 import {
   LineChart,
   Line,
@@ -13,26 +11,16 @@ import {
   CartesianGrid,
 } from 'recharts';
 
-type StockDetails = {
-  symbol: string;
-  name: string;
-  price: number;
-  change: number;
-  changePercent: number;
-  volume: number;
-  chartData: Array<{
-    timestamp: string;
-    price: number;
-  }>;
-};
-
 type StockDetailsPageProps = {
   symbol: string;
   onBack: () => void;
 };
 
 export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
-  const [stockDetails, setStockDetails] = useState<StockDetails | null>(null);
+  const [stockDetails, setStockDetails] = useState<StockPageView | null>(null);
+  const [formattedChartData, setFormattedChartData] = useState<
+    Array<{ timestamp: string; price: number }>
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,36 +32,19 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
         setIsLoading(true);
         setError(null);
 
-        const [stocks, stats, sparklines] = await Promise.all([
-          getStocks({ signal: controller.signal }),
-          getStockStats({ signal: controller.signal }),
-          getSparklines({ signal: controller.signal }),
-        ]);
+        const data = await getStockPageData(symbol, controller.signal);
 
-        const stock = stocks?.find((s) => s.symbol === symbol);
-        const stat = stats?.find((s) => s.symbol === symbol);
-        const spark = sparklines?.find((s) => s.symbol === symbol);
+        if (data) {
+          setStockDetails(data);
 
-        if (stock && stat && spark) {
-          const chartData = spark.points.map((pt: PricePoint) => {
-            return {
-              timestamp: new Date(pt.timestamp).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-              price: pt.price,
-            };
-          });
-
-          setStockDetails({
-            symbol: stock.symbol,
-            name: stock.name,
-            price: stat.price,
-            change: stat.change,
-            changePercent: stat.changePercent,
-            volume: stat.volume,
-            chartData,
-          });
+          const chartData = data.sparkline.map((pt) => ({
+            timestamp: new Date(pt.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            price: pt.price,
+          }));
+          setFormattedChartData(chartData);
         } else {
           setError(`Could not find data for ${symbol}.`);
         }
@@ -94,7 +65,7 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-7xl mx-auto px-2 py-3 bg-white min-h-screen">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 bg-white min-h-screen">
         <div className="w-12 h-2 bg-gray-200 rounded animate-pulse mb-4"></div>
         <div className="w-24 h-4 bg-gray-200 rounded animate-pulse mb-1"></div>
         <div className="w-16 h-2 bg-gray-100 rounded animate-pulse mb-4"></div>
@@ -105,7 +76,7 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
 
   if (error || !stockDetails) {
     return (
-      <div className="w-full max-w-7xl mx-auto px-2 py-3 bg-white min-h-screen">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 bg-white min-h-screen">
         <button
           onClick={onBack}
           className="text-[10px] text-purple-700 hover:underline mb-4 font-inter"
@@ -119,12 +90,12 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
     );
   }
 
-  const isPositive = stockDetails.change >= 0;
+  const isPositive = stockDetails.stat.change >= 0;
   const colorClass = isPositive ? 'text-green-600' : 'text-red-500';
   const strokeColor = isPositive ? '#16a34a' : '#ef4444';
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-2 pt-2 pb-4 flex flex-col gap-3 bg-white min-h-screen font-inter">
+    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 flex flex-col gap-3 bg-white min-h-screen font-inter">
       {/* Navigation */}
       <div>
         <button
@@ -138,19 +109,21 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
       {/* Header Info */}
       <div className="flex flex-row justify-between items-end border-b border-gray-200 pb-3">
         <div className="flex flex-col gap-0.5">
-          <h1 className="text-lg font-bold text-gray-900">{stockDetails.name}</h1>
-          <span className="text-[10px] font-medium text-gray-500">{stockDetails.symbol}</span>
+          <h1 className="text-lg font-bold text-gray-900">{symbol}</h1>
+          <span className="text-[10px] font-medium text-gray-500">{symbol}</span>
         </div>
         <div className="flex flex-col items-end gap-0.5">
-          <span className="text-lg font-bold text-gray-900">${stockDetails.price.toFixed(2)}</span>
+          <span className="text-lg font-bold text-gray-900">
+            ${stockDetails.stat.price.toFixed(2)}
+          </span>
           <div className={`flex flex-row gap-1 text-[10px] font-bold ${colorClass}`}>
             <span>
               {isPositive ? '+' : ''}
-              {stockDetails.change.toFixed(2)}
+              {stockDetails.stat.change.toFixed(2)}
             </span>
             <span>
               ({isPositive ? '+' : ''}
-              {stockDetails.changePercent.toFixed(2)}%)
+              {stockDetails.stat.changePercent.toFixed(2)}%)
             </span>
           </div>
         </div>
@@ -159,10 +132,7 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
       {/* Main Chart */}
       <div className="w-full h-48 mt-2">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={stockDetails.chartData}
-            margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
-          >
+          <LineChart data={formattedChartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
             <XAxis
               dataKey="timestamp"
