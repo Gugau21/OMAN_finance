@@ -1,10 +1,15 @@
 import type { StockStat } from '../types/stock';
 
-import { getConfiguredDataSource, type DataSource } from './dataSource';
+import {
+  getConfiguredDataSource,
+  type DataSource,
+  type MockScenario,
+} from './dataSource';
 import { parseStockStat } from './responseValidation';
 
 export type StockStatOptions = {
   source?: DataSource;
+  scenario?: MockScenario;
   signal?: AbortSignal;
 };
 
@@ -24,7 +29,7 @@ export async function getStockStat(
   const source = options.source ?? getConfiguredDataSource('stockStat');
 
   if (source === 'mock') {
-    return symbol === mockStockStat.symbol ? { ...mockStockStat } : null;
+    return getMockStockStat(symbol, options.scenario, options.signal);
   }
 
   const endpoint = `/api/stocks/${encodeURIComponent(symbol)}/stat`;
@@ -41,4 +46,49 @@ export async function getStockStat(
   }
 
   return parseStockStat(await response.json());
+}
+
+async function getMockStockStat(
+  symbol: string,
+  scenario: MockScenario = getConfiguredScenario(),
+  signal?: AbortSignal,
+): Promise<StockStat | null> {
+  if (scenario === 'empty' || symbol !== mockStockStat.symbol) {
+    return null;
+  }
+
+  if (scenario === 'error') {
+    throw new Error('Stock stat mock request failed');
+  }
+
+  if (scenario === 'loading') {
+    return waitForever(signal);
+  }
+
+  return { ...mockStockStat };
+}
+
+function getConfiguredScenario(): MockScenario {
+  const configuredScenario = import.meta.env.VITE_STOCK_STAT_SCENARIO;
+
+  return configuredScenario === 'empty' ||
+    configuredScenario === 'error' ||
+    configuredScenario === 'loading'
+    ? configuredScenario
+    : 'success';
+}
+
+function waitForever(signal?: AbortSignal): Promise<never> {
+  return new Promise((_, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Stock stat mock request aborted', 'AbortError'));
+      return;
+    }
+
+    signal?.addEventListener(
+      'abort',
+      () => reject(new DOMException('Stock stat mock request aborted', 'AbortError')),
+      { once: true },
+    );
+  });
 }

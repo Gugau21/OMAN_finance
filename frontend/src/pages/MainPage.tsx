@@ -31,6 +31,10 @@ export function MainPage({ onStockSelect }: MainPageProps) {
           getMainPageStocks(controller.signal),
         ] as const);
 
+        if (controller.signal.aborted) {
+          return;
+        }
+
         if (status) {
           setMarketStatus(status);
           const dateObj = new Date(status.timestamp);
@@ -50,6 +54,10 @@ export function MainPage({ onStockSelect }: MainPageProps) {
           setStocksData([]);
         }
       } catch (err: unknown) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
         if (err instanceof Error && err.name !== 'AbortError') {
           console.error('Failed to fetch dashboard data:', err.message);
           setError('We encountered an issue loading the market data. Please try again later.');
@@ -58,7 +66,9 @@ export function MainPage({ onStockSelect }: MainPageProps) {
           setError('An unexpected error occurred.');
         }
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     }
 

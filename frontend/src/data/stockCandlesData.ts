@@ -1,10 +1,15 @@
 import type { Candle, StockCandles } from '../types/stock';
 
-import { getConfiguredDataSource, type DataSource } from './dataSource';
+import {
+  getConfiguredDataSource,
+  type DataSource,
+  type MockScenario,
+} from './dataSource';
 import { parseStockCandles } from './responseValidation';
 
 export type StockCandlesOptions = {
   source?: DataSource;
+  scenario?: MockScenario;
   signal?: AbortSignal;
 };
 
@@ -32,7 +37,7 @@ export async function getStockCandles(
   const source = options.source ?? getConfiguredDataSource('stockCandles');
 
   if (source === 'mock') {
-    return symbol === 'AAPL' ? createMockCandles(symbol) : null;
+    return getMockStockCandles(symbol, options.scenario, options.signal);
   }
 
   const endpoint = `/api/stocks/${encodeURIComponent(symbol)}/candles`;
@@ -49,4 +54,49 @@ export async function getStockCandles(
   }
 
   return parseStockCandles(await response.json());
+}
+
+async function getMockStockCandles(
+  symbol: string,
+  scenario: MockScenario = getConfiguredScenario(),
+  signal?: AbortSignal,
+): Promise<StockCandles | null> {
+  if (scenario === 'empty' || symbol !== 'AAPL') {
+    return null;
+  }
+
+  if (scenario === 'error') {
+    throw new Error('Stock candles mock request failed');
+  }
+
+  if (scenario === 'loading') {
+    return waitForever(signal);
+  }
+
+  return createMockCandles(symbol);
+}
+
+function getConfiguredScenario(): MockScenario {
+  const configuredScenario = import.meta.env.VITE_STOCK_CANDLES_SCENARIO;
+
+  return configuredScenario === 'empty' ||
+    configuredScenario === 'error' ||
+    configuredScenario === 'loading'
+    ? configuredScenario
+    : 'success';
+}
+
+function waitForever(signal?: AbortSignal): Promise<never> {
+  return new Promise((_, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Stock candles mock request aborted', 'AbortError'));
+      return;
+    }
+
+    signal?.addEventListener(
+      'abort',
+      () => reject(new DOMException('Stock candles mock request aborted', 'AbortError')),
+      { once: true },
+    );
+  });
 }

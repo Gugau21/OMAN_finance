@@ -25,6 +25,28 @@ describe('getStockCandles', () => {
     expect(result?.candles).toHaveLength(60);
   });
 
+  it('supports mock empty and error scenarios', async () => {
+    await expect(
+      getStockCandles('AAPL', { source: 'mock', scenario: 'empty' }),
+    ).resolves.toBeNull();
+    await expect(
+      getStockCandles('AAPL', { source: 'mock', scenario: 'error' }),
+    ).rejects.toThrow('Stock candles mock request failed');
+  });
+
+  it('supports aborting the mock loading scenario', async () => {
+    const controller = new AbortController();
+    const request = getStockCandles('AAPL', {
+      source: 'mock',
+      scenario: 'loading',
+      signal: controller.signal,
+    });
+
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
   it('fetches real stock candles', async () => {
     const stockCandles = { symbol: 'MSFT', candles: createCandles() };
 

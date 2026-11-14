@@ -8,7 +8,9 @@ describe('getStockStat', () => {
   });
 
   it('returns mock data for a known symbol', async () => {
-    await expect(getStockStat('AAPL', { source: 'mock' })).resolves.toMatchObject({
+    await expect(
+      getStockStat('AAPL', { source: 'mock', scenario: 'success' }),
+    ).resolves.toMatchObject({
       symbol: 'AAPL',
       price: 231.42,
     });
@@ -16,6 +18,28 @@ describe('getStockStat', () => {
 
   it('returns null for an unknown mock symbol', async () => {
     await expect(getStockStat('UNKNOWN', { source: 'mock' })).resolves.toBeNull();
+  });
+
+  it('supports mock empty and error scenarios', async () => {
+    await expect(
+      getStockStat('AAPL', { source: 'mock', scenario: 'empty' }),
+    ).resolves.toBeNull();
+    await expect(
+      getStockStat('AAPL', { source: 'mock', scenario: 'error' }),
+    ).rejects.toThrow('Stock stat mock request failed');
+  });
+
+  it('supports aborting the mock loading scenario', async () => {
+    const controller = new AbortController();
+    const request = getStockStat('AAPL', {
+      source: 'mock',
+      scenario: 'loading',
+      signal: controller.signal,
+    });
+
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
   });
 
   it('fetches a real stock stat', async () => {

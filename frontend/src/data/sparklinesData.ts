@@ -69,13 +69,15 @@ function getConfiguredScenario(): MockScenario {
 function waitForever(signal?: AbortSignal): Promise<never> {
   return new Promise((_, reject) => {
     if (signal?.aborted) {
-      reject(new Error('Sparklines mock request aborted'));
+      reject(new DOMException('Sparklines mock request aborted', 'AbortError'));
       return;
     }
 
-    signal?.addEventListener('abort', () => reject(new Error('Sparklines mock request aborted')), {
-      once: true,
-    });
+    signal?.addEventListener(
+      'abort',
+      () => reject(new DOMException('Sparklines mock request aborted', 'AbortError')),
+      { once: true },
+    );
   });
 }
 
