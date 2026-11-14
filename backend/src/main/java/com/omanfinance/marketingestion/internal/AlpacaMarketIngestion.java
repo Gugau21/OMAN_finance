@@ -7,7 +7,9 @@ import com.omanfinance.marketingestion.api.dto.BarsResponse;
 import com.omanfinance.marketingestion.api.dto.Clock;
 import com.omanfinance.marketingestion.api.dto.Stock;
 import java.util.List;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
@@ -15,8 +17,10 @@ import reactor.core.publisher.Flux;
  * The real {@link MarketIngestion}, backed by Alpaca and the {@code stock} table. Active under
  * every profile except {@code fake}.
  *
- * <p>The two streams are not implemented yet and throw {@link UnsupportedOperationException}: they
- * ship in PR 3 (A6, A7). Until then, other modules use the {@code fake} profile to read them.
+ * <p>Live bars come from the Alpaca stream, which {@link AlpacaStreamClient} opens once the
+ * application is ready. {@code streamMarketStatus()} is not implemented yet and throws {@link
+ * UnsupportedOperationException}: it ships with A6. Until then, other modules use the {@code fake}
+ * profile to read it.
  */
 @Component
 @Profile("!fake")
@@ -25,6 +29,8 @@ public class AlpacaMarketIngestion implements MarketIngestion {
   private final List<Stock> trackedStocks;
   private final BarHistory barHistory;
   private final MarketStatusTracker statusTracker;
+  private final LiveBarStream liveBars;
+  private final AlpacaStreamClient streamClient;
 
   /**
    * Reads the tracked stocks from the {@code stock} table once, so {@link #getTrackedStocks} never
@@ -33,19 +39,39 @@ public class AlpacaMarketIngestion implements MarketIngestion {
    * @throws IllegalStateException when the table is empty, so the application does not start
    */
   AlpacaMarketIngestion(
-      StockRepository stocks, BarHistory barHistory, MarketStatusTracker statusTracker) {
+      StockRepository stocks,
+      BarHistory barHistory,
+      MarketStatusTracker statusTracker,
+      LiveBarStream liveBars,
+      AlpacaStreamClient streamClient) {
     this.trackedStocks = stocks.findAllByOrderByIdAsc().stream().map(StockEntity::toStock).toList();
     if (trackedStocks.isEmpty()) {
       throw new IllegalStateException("The stock table is empty: no stocks to track");
     }
     this.barHistory = barHistory;
     this.statusTracker = statusTracker;
+    this.liveBars = liveBars;
+    this.streamClient = streamClient;
   }
 
-  /** Not implemented yet: comes with A7 (live bars from the Alpaca WebSocket). */
+  /**
+   * Connects to the Alpaca stream for the tracked symbols once the application is ready, so the
+   * connection is not opened while beans are still being created. Returns at once; the stream
+   * reconnects by itself when it drops.
+   */
+  @EventListener(ApplicationReadyEvent.class)
+  void startLiveBars() {
+    streamClient.connect(trackedStocks.stream().map(Stock::symbol).toList());
+  }
+
+  /**
+   * The live minute bars from the Alpaca stream, shared by every subscriber (see {@link
+   * LiveBarStream}). Subscribing does not open a connection: the one stream connection is opened by
+   * {@link #startLiveBars} and stays open while the application runs.
+   */
   @Override
   public Flux<Bar> streamBars() {
-    throw notYet("streamBars", "A7");
+    return liveBars.flux();
   }
 
   /**
