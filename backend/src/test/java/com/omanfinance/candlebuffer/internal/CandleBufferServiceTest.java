@@ -14,20 +14,26 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 class CandleBufferServiceTest {
 
   private CandleHistory candleHistory;
   private StockStatCalculator stockStatCalculator;
   private CandleBufferStartup candleBufferStartup;
-  private CandleBackfillerService service;
+  private LiveCandleStream liveCandleStream;
+  private CandleBufferService service;
 
   @BeforeEach
   void setUp() {
     candleHistory = mock(CandleHistory.class);
     stockStatCalculator = mock(StockStatCalculator.class);
     candleBufferStartup = mock(CandleBufferStartup.class);
-    service = new CandleBackfillerService(candleHistory, stockStatCalculator, candleBufferStartup);
+    liveCandleStream = mock(LiveCandleStream.class);
+    service =
+        new CandleBufferService(
+            candleHistory, stockStatCalculator, candleBufferStartup, liveCandleStream);
   }
 
   @Test
@@ -105,10 +111,13 @@ class CandleBufferServiceTest {
   }
 
   @Test
-  void streamCandles_is_not_implemented() {
-    assertThatThrownBy(service::streamCandles)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("streamCandles");
+  void streamCandles_receives_candles() {
+    Candle expected = candle();
+    when(liveCandleStream.streamCandles()).thenReturn(Flux.just(expected));
+
+    StepVerifier.create(service.streamCandles()).expectNext(expected).thenCancel().verify();
+
+    verify(liveCandleStream).streamCandles();
   }
 
   @Test

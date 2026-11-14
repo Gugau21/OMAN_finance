@@ -9,18 +9,21 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 @Service
-public class CandleBackfillerService implements CandleBuffer {
+public class CandleBufferService implements CandleBuffer {
   private final CandleHistory candleHistory;
   private final StockStatCalculator stockStatCalculator;
   private final CandleBufferStartup candleBufferStartup;
+  private final LiveCandleStream liveCandleStream;
 
-  public CandleBackfillerService(
+  public CandleBufferService(
       CandleHistory candleHistory,
       StockStatCalculator stockStatCalculator,
-      CandleBufferStartup candleBufferStartup) {
+      CandleBufferStartup candleBufferStartup,
+      LiveCandleStream liveCandleStream) {
     this.candleHistory = candleHistory;
     this.stockStatCalculator = stockStatCalculator;
     this.candleBufferStartup = candleBufferStartup;
+    this.liveCandleStream = liveCandleStream;
   }
 
   @Override
@@ -30,7 +33,7 @@ public class CandleBackfillerService implements CandleBuffer {
 
   @Override
   public Flux<Candle> streamCandles() {
-    throw new UnsupportedOperationException("streamCandles is not implemented in this iteration");
+    return liveCandleStream.streamCandles();
   }
 
   @Override
