@@ -1,7 +1,6 @@
 package com.omanfinance.candlebuffer.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,6 +23,7 @@ class CandleBufferServiceTest {
   private CandleBufferStartup candleBufferStartup;
   private LiveCandleStream liveCandleStream;
   private CandleBufferService service;
+  private LiveStockStatStream liveStockStatStream;
 
   @BeforeEach
   void setUp() {
@@ -31,9 +31,14 @@ class CandleBufferServiceTest {
     stockStatCalculator = mock(StockStatCalculator.class);
     candleBufferStartup = mock(CandleBufferStartup.class);
     liveCandleStream = mock(LiveCandleStream.class);
+    liveStockStatStream = mock(LiveStockStatStream.class);
     service =
         new CandleBufferService(
-            candleHistory, stockStatCalculator, candleBufferStartup, liveCandleStream);
+            candleHistory,
+            stockStatCalculator,
+            candleBufferStartup,
+            liveCandleStream,
+            liveStockStatStream);
   }
 
   @Test
@@ -86,14 +91,7 @@ class CandleBufferServiceTest {
 
   @Test
   void getStockStat_returns_what_calculator_returns() {
-    StockStat stat =
-        new StockStat(
-            "AAPL",
-            Instant.parse("2026-10-29T16:04:00Z"),
-            new BigDecimal("110"),
-            new BigDecimal("10"),
-            new BigDecimal("10"),
-            150L);
+    StockStat stat = stockStat();
     when(stockStatCalculator.getStockStat("AAPL", 60)).thenReturn(stat);
 
     assertThat(service.getStockStat("AAPL", 60)).isSameAs(stat);
@@ -121,10 +119,23 @@ class CandleBufferServiceTest {
   }
 
   @Test
-  void streamStockStat_is_not_implemented() {
-    assertThatThrownBy(service::streamStockStat)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("streamStockStat");
+  void streamStockStat_receives_StockStats() {
+    StockStat expected = stockStat();
+    when(liveStockStatStream.streamStockStat()).thenReturn(Flux.just(expected));
+
+    StepVerifier.create(service.streamStockStat()).expectNext(expected).thenCancel().verify();
+
+    verify(liveStockStatStream).streamStockStat();
+  }
+
+  private static StockStat stockStat() {
+    return new StockStat(
+        "AAPL",
+        Instant.parse("2026-10-29T16:04:00Z"),
+        new BigDecimal("110"),
+        new BigDecimal("10"),
+        new BigDecimal("10"),
+        150L);
   }
 
   private static Candle candle() {

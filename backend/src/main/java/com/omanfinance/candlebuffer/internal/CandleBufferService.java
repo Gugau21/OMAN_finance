@@ -9,21 +9,24 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 @Service
-public class CandleBufferService implements CandleBuffer {
+class CandleBufferService implements CandleBuffer {
   private final CandleHistory candleHistory;
   private final StockStatCalculator stockStatCalculator;
   private final CandleBufferStartup candleBufferStartup;
   private final LiveCandleStream liveCandleStream;
+  private final LiveStockStatStream liveStockStatStream;
 
   public CandleBufferService(
       CandleHistory candleHistory,
       StockStatCalculator stockStatCalculator,
       CandleBufferStartup candleBufferStartup,
-      LiveCandleStream liveCandleStream) {
+      LiveCandleStream liveCandleStream,
+      LiveStockStatStream liveStockStatStream) {
     this.candleHistory = candleHistory;
     this.stockStatCalculator = stockStatCalculator;
     this.candleBufferStartup = candleBufferStartup;
     this.liveCandleStream = liveCandleStream;
+    this.liveStockStatStream = liveStockStatStream;
   }
 
   @Override
@@ -43,7 +46,12 @@ public class CandleBufferService implements CandleBuffer {
 
   @Override
   public Flux<StockStat> streamStockStat() {
-    throw new UnsupportedOperationException("streamStockStat is not implemented in this iteration");
+    return liveStockStatStream.streamStockStat();
+  }
+
+  @Override
+  public void ensureStreamStockStatStarted(int windowSize) {
+    liveStockStatStream.ensureStreamStockStatStarted(windowSize);
   }
 
   @Override

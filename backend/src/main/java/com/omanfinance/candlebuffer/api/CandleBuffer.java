@@ -31,9 +31,20 @@ public interface CandleBuffer {
   List<Candle> getLastCandles(String symbol, int numberOfCandles);
 
   /**
-   * A new stock stat each time a candle is saved for a tracked symbol, computed from that symbol's
-   * last 60 candles. The stream is shared: every subscriber gets each stat emitted after it
-   * subscribes, and nothing is replayed.
+   * Starts emitting on {@link #streamStockStat()}: on each saved candle, recomputes a stat from the
+   * last {@code windowSize} stored candles for that symbol. Call once at startup from the module
+   * that owns the REST/STOMP contract (marketfeed). Must run before anyone subscribes to {@link
+   * #streamStockStat()}.
+   */
+  void ensureStreamStockStatStarted(int windowSize);
+
+  /**
+   * A new stock stat each time a candle is saved for a tracked symbol, computed over the window
+   * given to {@link #ensureStreamStockStatStarted(int)}. The stream is shared: every subscriber
+   * gets each stat emitted after it subscribes, and nothing is replayed.
+   *
+   * <p><b>Call {@link #ensureStreamStockStatStarted(int)} once before subscribing</b>, or this flux
+   * never receives live stats.
    */
   Flux<StockStat> streamStockStat();
 
