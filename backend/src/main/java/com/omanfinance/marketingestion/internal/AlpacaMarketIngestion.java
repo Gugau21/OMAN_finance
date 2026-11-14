@@ -18,9 +18,7 @@ import reactor.core.publisher.Flux;
  * every profile except {@code fake}.
  *
  * <p>Live bars come from the Alpaca stream, which {@link AlpacaStreamClient} opens once the
- * application is ready. {@code streamMarketStatus()} is not implemented yet and throws {@link
- * UnsupportedOperationException}: it ships with A6. Until then, other modules use the {@code fake}
- * profile to read it.
+ * application is ready. The market status comes from {@link MarketStatusTracker}.
  */
 @Component
 @Profile("!fake")
@@ -91,10 +89,13 @@ public class AlpacaMarketIngestion implements MarketIngestion {
     return statusTracker.current();
   }
 
-  /** Not implemented yet: comes with A6 (market status pushed to browsers). */
+  /**
+   * Every status {@link MarketStatusTracker} fetches from Alpaca, starting with the current one for
+   * each new subscriber.
+   */
   @Override
   public Flux<Clock> streamMarketStatus() {
-    throw notYet("streamMarketStatus", "A6");
+    return statusTracker.statuses();
   }
 
   /** The stocks read from the {@code stock} table at startup, ordered by {@code id}. */
@@ -111,9 +112,5 @@ public class AlpacaMarketIngestion implements MarketIngestion {
   @Override
   public boolean removeSymbol(String symbol) {
     throw new UnsupportedOperationException("removeSymbol is not implemented in this iteration");
-  }
-
-  private static UnsupportedOperationException notYet(String method, String issue) {
-    return new UnsupportedOperationException(method + " is not implemented yet (" + issue + ")");
   }
 }

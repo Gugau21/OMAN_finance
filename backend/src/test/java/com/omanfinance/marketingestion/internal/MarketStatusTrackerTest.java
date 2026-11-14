@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
 import reactor.test.scheduler.VirtualTimeScheduler;
 
@@ -224,11 +225,91 @@ class MarketStatusTrackerTest {
   }
 
   @Test
+  void emitsEveryStatusFromStartupToTheNextOpenWithTwoSafetyNetRefreshesInBetween() {
+    Clock firstSafetyNet = closedAt("2026-11-09T23:15:30Z");
+    Clock secondSafetyNet = closedAt("2026-11-10T07:15:30Z");
+    when(client.fetch()).thenReturn(OPEN, CLOSED, firstSafetyNet, secondSafetyNet, OPEN_NEXT_DAY);
+    MarketStatusTracker clock = startWithRefreshEvery(Duration.ofHours(8));
+    List<Clock> emitted = subscribe(clock);
+
+    advanceTo("2026-11-10T14:30:05Z");
+
+    assertThat(emitted)
+        .containsExactly(OPEN, CLOSED, firstSafetyNet, secondSafetyNet, OPEN_NEXT_DAY);
+  }
+
+  @Test
+  void aNewSubscriberGetsTheCurrentStatusAtOnce() {
+    when(client.fetch()).thenReturn(OPEN, CLOSED);
+    MarketStatusTracker clock = start();
+    assertThat(subscribe(clock)).containsExactly(OPEN);
+
+    advance(
+        Duration.between(OPEN.timestamp(), OPEN.nextClose())
+            .plus(MarketStatusTracker.BOUNDARY_MARGIN));
+
+    assertThat(subscribe(clock)).containsExactly(CLOSED);
+  }
+
+  @Test
+  void everySubscriberGetsTheSameStatuses() {
+    when(client.fetch()).thenReturn(OPEN, CLOSED);
+    MarketStatusTracker clock = start();
+    List<Clock> first = subscribe(clock);
+    List<Clock> second = subscribe(clock);
+
+    advance(
+        Duration.between(OPEN.timestamp(), OPEN.nextClose())
+            .plus(MarketStatusTracker.BOUNDARY_MARGIN));
+
+    assertThat(first).containsExactly(OPEN, CLOSED);
+    assertThat(second).containsExactly(OPEN, CLOSED);
+  }
+
+  @Test
+  void aFailedRefreshEmitsNothing() {
+    when(client.fetch()).thenReturn(OPEN).thenThrow(unavailable());
+    MarketStatusTracker clock = start();
+    List<Clock> emitted = subscribe(clock);
+
+    advance(
+        Duration.between(OPEN.timestamp(), OPEN.nextClose())
+            .plus(MarketStatusTracker.BOUNDARY_MARGIN));
+
+    verify(client, times(2)).fetch();
+    assertThat(emitted).containsExactly(OPEN);
+  }
+
+  @Test
+  void theStatusStreamDoesNotComplete() {
+    when(client.fetch()).thenReturn(OPEN);
+    MarketStatusTracker clock = start();
+    List<String> signals = new CopyOnWriteArrayList<>();
+
+    clock
+        .statuses()
+        .subscribe(
+            status -> signals.add("next"),
+            error -> signals.add("error"),
+            () -> signals.add("complete"));
+    advance(Duration.ofDays(3));
+
+    assertThat(signals).doesNotContain("error", "complete");
+  }
+
+  @Test
   void rejectsARefreshIntervalThatIsNotPositive() {
     assertThatThrownBy(() -> startWithRefreshEvery(Duration.ZERO))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("alpaca.clock-refresh-interval");
     verifyNoInteractions(client);
+  }
+
+  /** Subscribes to the status stream and returns the list it fills. */
+  private static List<Clock> subscribe(MarketStatusTracker clock) {
+    List<Clock> emitted = new CopyOnWriteArrayList<>();
+    clock.statuses().subscribe(emitted::add);
+    return emitted;
   }
 
   private MarketStatusTracker start() {

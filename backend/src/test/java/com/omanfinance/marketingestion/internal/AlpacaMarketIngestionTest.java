@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import reactor.core.publisher.Flux;
 
 class AlpacaMarketIngestionTest {
 
@@ -134,6 +135,15 @@ class AlpacaMarketIngestionTest {
     AlpacaMarketIngestion ingestion = ingestion(repositoryWithOneStock());
 
     assertThat(ingestion.getMarketStatus()).isEqualTo(status);
+  }
+
+  @Test
+  void streamsTheMarketStatusFromTheStatusTracker() {
+    Flux<Clock> statuses = Flux.never();
+    when(statusTracker.statuses()).thenReturn(statuses);
+    AlpacaMarketIngestion ingestion = ingestion(repositoryWithOneStock());
+
+    assertThat(ingestion.streamMarketStatus()).isSameAs(statuses);
   }
 
   @Test

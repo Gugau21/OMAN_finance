@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
@@ -34,6 +36,9 @@ import reactor.core.scheduler.Schedulers;
  * failed refresh keeps the old status and schedules nothing, so after a failed call at the open or
  * close, the next safety-net refresh corrects the status and schedules the next boundary again.
  * Every successful refresh, safety-net ones included, replaces the pending boundary refresh.
+ *
+ * <p>Every status fetched, at startup and on every successful refresh, is also emitted on {@link
+ * #statuses()}, even when only its {@code timestamp} changed.
  */
 @Component
 @Profile("!fake")
@@ -62,6 +67,14 @@ class MarketStatusTracker {
   private final AlpacaRestClockClient client;
   private final Scheduler scheduler;
   private volatile Clock current;
+
+  /**
+   * Replays the latest status to each new subscriber, then sends it every status after that. Only
+   * emitted to while holding this object's lock, so a new subscriber never sees an older status
+   * than {@link #current}.
+   */
+  private final Sinks.Many<Clock> statuses = Sinks.many().replay().latest();
+
   private Disposable boundaryRefresh = Disposables.disposed();
 
   @Autowired
@@ -94,8 +107,10 @@ class MarketStatusTracker {
     }
     this.client = client;
     this.scheduler = scheduler;
-    this.current = fetchAtStartup(sleeper);
+    Clock first = fetchAtStartup(sleeper);
     synchronized (this) {
+      current = first;
+      emit(first);
       scheduleBoundaryRefresh(current);
     }
     scheduler.schedulePeriodically(
@@ -108,6 +123,14 @@ class MarketStatusTracker {
   /** The last market status Alpaca returned. Never null. */
   Clock current() {
     return current;
+  }
+
+  /**
+   * Every status fetched from now on, starting with the current one. Shared by all subscribers; it
+   * does not complete, and a failed refresh emits nothing.
+   */
+  Flux<Clock> statuses() {
+    return statuses.asFlux();
   }
 
   /** Cancels the pending refreshes when the application shuts down. */
@@ -130,8 +153,17 @@ class MarketStatusTracker {
       return;
     }
     current = clock;
+    emit(clock);
     log.info("Market status refreshed: {}", clock);
     scheduleBoundaryRefresh(clock);
+  }
+
+  /** Sends {@code clock} to every subscriber of {@link #statuses()}; called holding the lock. */
+  private void emit(Clock clock) {
+    Sinks.EmitResult result = statuses.tryEmitNext(clock);
+    if (result.isFailure()) {
+      log.warn("Market status {} not emitted: {}", clock, result);
+    }
   }
 
   /** Cancels the pending boundary refresh, if any, and schedules one for {@code clock}. */
