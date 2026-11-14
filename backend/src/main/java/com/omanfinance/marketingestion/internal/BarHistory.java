@@ -39,18 +39,19 @@ class BarHistory {
   private static final Duration MINUTE = Duration.ofMinutes(1);
   private static final Logger log = LoggerFactory.getLogger(BarHistory.class);
 
-  private final AlpacaBarsClient alpaca;
+  private final AlpacaRestBarsClient alpaca;
   private final BarRedisRepository cache;
   private final Clock clock;
 
-  BarHistory(AlpacaBarsClient alpaca, BarRedisRepository cache, Clock clock) {
+  BarHistory(AlpacaRestBarsClient alpaca, BarRedisRepository cache, Clock clock) {
     this.alpaca = alpaca;
     this.cache = cache;
     this.clock = clock;
   }
 
   /**
-   * The first {@code limit} bars for {@code request}, as {@link AlpacaBarsClient#fetchUpToLimit}.
+   * The first {@code limit} bars for {@code request}, as {@link
+   * AlpacaRestBarsClient#fetchUpToLimit}.
    */
   BarsResponse getBars(BarsRequest request) {
     if (!isCacheable(request)) {

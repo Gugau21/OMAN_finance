@@ -152,7 +152,7 @@ flowchart TB
 
     subgraph ingestion["<b>marketingestion</b>"]
         direction LR
-        barsClient["<b>BarHistory → AlpacaBarsClient</b><br/><small>GET /v2/stocks/bars<br/>returns cached raw bars if Redis has every minute,<br/>else fetches all pages from Alpaca with feed=iex,<br/>caches the settled minutes, returns the raw response<br/>Redis down: bars come from Alpaca<br/>429: one retry after Retry-After</small>"]
+        barsClient["<b>BarHistory → AlpacaRestBarsClient</b><br/><small>GET /v2/stocks/bars<br/>returns cached raw bars if Redis has every minute,<br/>else fetches all pages from Alpaca with feed=iex,<br/>caches the settled minutes, returns the raw response<br/>Redis down: bars come from Alpaca<br/>429: one retry after Retry-After</small>"]
         barRepo["<b>BarRedisRepository</b><br/><small>raw Alpaca bars, one entry per minute<br/>none:{ms} for a minute with no trades<br/>deletes entries older than the retention</small>"]
         stockRepo["<b>StockRepository</b><br/><small>SELECT / INSERT / DELETE on Stock<br/>keeps the symbol list in memory</small>"]
         ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): stream of Bars<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>streamMarketStatus(): stream of Clocks<br/>getTrackedStocks(): list of Stocks<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
@@ -390,7 +390,7 @@ flowchart TB
 
   `CandleBackfiller` has no detection logic. For each missing range it
   builds the `BarsRequest` itself: symbol, `timeframe=1Min` and only that
-  range (`start`, `end`, `limit`, `sort`). `AlpacaBarsClient` adds `feed=iex`
+  range (`start`, `end`, `limit`, `sort`). `AlpacaRestBarsClient` adds `feed=iex`
   (the only feed with recent data on the free plan). The backfiller then
   converts the bars with `Candle.from` and saves them. `CandleRedisRepository`
   only stores and reads candles. Candles are keyed by timestamp, so refetched

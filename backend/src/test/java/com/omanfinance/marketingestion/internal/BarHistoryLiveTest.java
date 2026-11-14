@@ -62,7 +62,7 @@ class BarHistoryLiveTest {
   @Autowired private StringRedisTemplate redis;
   @Autowired private TestClock clock;
 
-  private AlpacaBarsClient alpaca;
+  private AlpacaRestBarsClient alpaca;
   private BarHistory client;
 
   @BeforeEach
@@ -87,7 +87,7 @@ class BarHistoryLiveTest {
             Duration.ofSeconds(60));
     RestClient restClient =
         new AlpacaRestClientConfig().alpacaDataRestClient(RestClient.builder(), properties);
-    alpaca = spy(new AlpacaBarsClient(restClient));
+    alpaca = spy(new AlpacaRestBarsClient(restClient));
     client = new BarHistory(alpaca, cache, clock);
   }
 

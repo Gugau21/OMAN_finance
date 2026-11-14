@@ -47,7 +47,7 @@ class MarketStatusTrackerTest {
   /** Longer than any test runs, so only the tests about the safety net see it. */
   private static final Duration NO_SAFETY_NET = Duration.ofDays(7);
 
-  private final AlpacaClockClient client = mock(AlpacaClockClient.class);
+  private final AlpacaRestClockClient client = mock(AlpacaRestClockClient.class);
   private final List<Duration> waits = new ArrayList<>();
   private final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create();
 

@@ -22,18 +22,18 @@ import org.springframework.web.client.RestClient;
  *
  * <pre>
  * set -a; source ../.env; set +a
- * ./gradlew test --tests '*AlpacaBarsClientLiveTest' -i
+ * ./gradlew test --tests '*AlpacaRestBarsClientLiveTest' -i
  * </pre>
  */
 @EnabledIfEnvironmentVariable(named = "ALPACA_API_KEY_ID", matches = ".+")
-class AlpacaBarsClientLiveTest {
+class AlpacaRestBarsClientLiveTest {
 
   /** The first five minutes of the 2026-11-05 session, 09:30-09:35 ET. */
   private static final Instant START = Instant.parse("2026-11-05T14:30:00Z");
 
   private static final Instant END = Instant.parse("2026-11-05T14:35:00Z");
 
-  private AlpacaBarsClient client;
+  private AlpacaRestBarsClient client;
 
   @BeforeEach
   void setUp() {
@@ -54,7 +54,7 @@ class AlpacaBarsClientLiveTest {
             Duration.ofSeconds(1),
             Duration.ofSeconds(60));
     client =
-        new AlpacaBarsClient(
+        new AlpacaRestBarsClient(
             new AlpacaRestClientConfig().alpacaDataRestClient(RestClient.builder(), properties));
   }
 

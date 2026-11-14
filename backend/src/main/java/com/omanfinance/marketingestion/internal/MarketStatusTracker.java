@@ -59,13 +59,13 @@ class MarketStatusTracker {
 
   private static final Logger log = LoggerFactory.getLogger(MarketStatusTracker.class);
 
-  private final AlpacaClockClient client;
+  private final AlpacaRestClockClient client;
   private final Scheduler scheduler;
   private volatile Clock current;
   private Disposable boundaryRefresh = Disposables.disposed();
 
   @Autowired
-  MarketStatusTracker(AlpacaClockClient client, AlpacaProperties properties) {
+  MarketStatusTracker(AlpacaRestClockClient client, AlpacaProperties properties) {
     this(
         client,
         Thread::sleep,
@@ -84,7 +84,7 @@ class MarketStatusTracker {
    *     fix that
    */
   MarketStatusTracker(
-      AlpacaClockClient client,
+      AlpacaRestClockClient client,
       AlpacaRestErrorHandling.Sleeper sleeper,
       Scheduler scheduler,
       Duration refreshInterval) {
@@ -163,7 +163,7 @@ class MarketStatusTracker {
         if (attempt == STARTUP_ATTEMPTS) {
           throw new IllegalStateException(
               "Could not get the market status from Alpaca GET %s after %d attempts"
-                  .formatted(AlpacaClockClient.CLOCK_PATH, STARTUP_ATTEMPTS),
+                  .formatted(AlpacaRestClockClient.CLOCK_PATH, STARTUP_ATTEMPTS),
               e);
         }
         log.warn(

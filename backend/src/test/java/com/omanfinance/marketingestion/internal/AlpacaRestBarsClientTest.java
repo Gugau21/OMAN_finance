@@ -30,7 +30,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
-class AlpacaBarsClientTest {
+class AlpacaRestBarsClientTest {
 
   private static final String BASE_URL = "https://data.alpaca.markets";
   private static final Instant START = Instant.parse("2026-11-05T14:30:00Z");
@@ -38,19 +38,19 @@ class AlpacaBarsClientTest {
   private static final String EMPTY_BODY = "{\"bars\":{},\"next_page_token\":null}";
 
   private MockRestServiceServer server;
-  private AlpacaBarsClient client;
+  private AlpacaRestBarsClient client;
 
   @BeforeEach
   void setUp() {
     RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
     server = MockRestServiceServer.bindTo(builder).build();
-    client = new AlpacaBarsClient(builder.build());
+    client = new AlpacaRestBarsClient(builder.build());
   }
 
   @Test
   void sendsEveryFieldOfTheRequestAndTheIexFeed() {
     server
-        .expect(requestTo(startsWith(BASE_URL + AlpacaBarsClient.BARS_PATH + "?")))
+        .expect(requestTo(startsWith(BASE_URL + AlpacaRestBarsClient.BARS_PATH + "?")))
         .andExpect(method(HttpMethod.GET))
         .andExpect(
             request ->
@@ -120,10 +120,10 @@ class AlpacaBarsClientTest {
   @Test
   void returnsTheBarsExactlyAsAlpacaSendsThem() {
     server
-        .expect(requestTo(startsWith(BASE_URL + AlpacaBarsClient.BARS_PATH)))
+        .expect(requestTo(startsWith(BASE_URL + AlpacaRestBarsClient.BARS_PATH)))
         .andRespond(
             withSuccess(
-                new ClassPathResource("alpaca/bars-page-1.json"), MediaType.APPLICATION_JSON));
+                new ClassPathResource("alpaca/rest-bars-page-1.json"), MediaType.APPLICATION_JSON));
 
     BarsResponse response =
         client.fetchPage(
@@ -240,7 +240,7 @@ class AlpacaBarsClientTest {
   @Test
   void makesOneRequestWhenAlpacaReturnsNoNextPageToken() {
     server
-        .expect(requestTo(startsWith(BASE_URL + AlpacaBarsClient.BARS_PATH)))
+        .expect(requestTo(startsWith(BASE_URL + AlpacaRestBarsClient.BARS_PATH)))
         .andRespond(
             withSuccess(
                 """

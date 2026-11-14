@@ -70,7 +70,7 @@ class BarHistoryTest {
     clock.set(NOW);
     RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
     alpaca = MockRestServiceServer.bindTo(builder).build();
-    client = new BarHistory(new AlpacaBarsClient(builder.build()), cache, clock);
+    client = new BarHistory(new AlpacaRestBarsClient(builder.build()), cache, clock);
   }
 
   @AfterEach
@@ -260,7 +260,7 @@ class BarHistoryTest {
   private void alpacaAnswers(ExpectedCount count, BarsResponse response)
       throws JsonProcessingException {
     alpaca
-        .expect(count, requestTo(startsWith(BASE_URL + AlpacaBarsClient.BARS_PATH)))
+        .expect(count, requestTo(startsWith(BASE_URL + AlpacaRestBarsClient.BARS_PATH)))
         .andRespond(withSuccess(json.writeValueAsString(response), MediaType.APPLICATION_JSON));
   }
 

@@ -11,8 +11,8 @@ import org.springframework.context.annotation.Primary;
 
 /**
  * Lets a test start the full application without reaching Alpaca {@code GET /v2/clock}. Import
- * {@link Config} to replace the real {@link AlpacaClockClient} with one that always returns {@link
- * #OPEN}.
+ * {@link Config} to replace the real {@link AlpacaRestClockClient} with one that always returns
+ * {@link #OPEN}.
  */
 public final class StubAlpacaClock {
 
@@ -30,8 +30,8 @@ public final class StubAlpacaClock {
 
     @Bean
     @Primary
-    AlpacaClockClient stubAlpacaClockClient() {
-      AlpacaClockClient client = mock(AlpacaClockClient.class);
+    AlpacaRestClockClient stubAlpacaRestClockClient() {
+      AlpacaRestClockClient client = mock(AlpacaRestClockClient.class);
       when(client.fetch()).thenReturn(OPEN);
       return client;
     }

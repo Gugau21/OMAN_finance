@@ -70,7 +70,8 @@ class BarRedisRepositoryTest {
   void returnsTheRecordedAlpacaBarsUnchanged() throws IOException {
     BarsResponse recorded =
         json.readValue(
-            new ClassPathResource("alpaca/bars-page-1.json").getInputStream(), BarsResponse.class);
+            new ClassPathResource("alpaca/rest-bars-page-1.json").getInputStream(),
+            BarsResponse.class);
     List<Bar> bars = recorded.barsFor("AAPL").stream().map(bar -> bar.withSymbol(SYMBOL)).toList();
 
     repository.save(SYMBOL, bars, T0, T1);

@@ -42,7 +42,7 @@ class BarHistoryRedisDownTest {
   private static final BarsResponse FROM_ALPACA =
       new BarsResponse(Map.of("AAPL", List.of(bar(T0))), null);
 
-  private final AlpacaBarsClient alpaca = mock(AlpacaBarsClient.class);
+  private final AlpacaRestBarsClient alpaca = mock(AlpacaRestBarsClient.class);
   private final BarRedisRepository cache = mock(BarRedisRepository.class);
   private final BarHistory client = new BarHistory(alpaca, cache, CLOCK);
 
