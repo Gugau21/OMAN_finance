@@ -50,7 +50,9 @@ class AlpacaBarsClientLiveTest {
             Duration.ofSeconds(10),
             Duration.ofSeconds(30),
             Duration.ofDays(7),
-            Duration.ofMinutes(15));
+            Duration.ofMinutes(15),
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(60));
     client =
         new AlpacaBarsClient(
             new AlpacaRestClientConfig().alpacaDataRestClient(RestClient.builder(), properties));

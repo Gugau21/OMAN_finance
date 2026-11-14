@@ -80,7 +80,18 @@ class CachingBarsClientRedisDownTest {
               new StringRedisTemplate(factory),
               new ObjectMapper().findAndRegisterModules(),
               new AlpacaProperties(
-                  null, null, null, null, null, null, null, null, Duration.ofDays(7), null),
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  Duration.ofDays(7),
+                  null,
+                  null,
+                  null),
               CLOCK);
       when(alpaca.fetchUpToLimit(REQUEST)).thenReturn(FROM_ALPACA);
 
