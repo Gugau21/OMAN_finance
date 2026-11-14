@@ -111,8 +111,8 @@ used for service-to-service traffic.
 1. A browser connects to the host's Nginx port.
 2. `nginx-prod` serves the React/Vite build from `/usr/share/nginx/html`.
 3. Requests under `/api/` are proxied to `http://backend:8080`.
-4. Requests under `/ws/` are proxied to the backend with WebSocket upgrade
-   headers and buffering disabled.
+4. The exact path `/ws` (the STOMP endpoint) is proxied to the backend with
+   WebSocket upgrade headers and buffering disabled.
 5. The exact path `/actuator/health` is proxied to the backend. Other actuator
    paths are not explicitly exposed by Nginx.
 6. Client-side routes fall back to `/index.html`.
@@ -124,7 +124,7 @@ the resulting `dist` directory into an Nginx Alpine runtime image.
 
 1. A browser connects to `nginx-dev` on the configured HTTP port.
 2. `nginx-dev` proxies frontend traffic to `http://frontend-dev:5173`.
-3. `/api/`, `/ws/`, and `/actuator/health` still go directly to
+3. `/api/`, `/ws`, and `/actuator/health` still go directly to
    `http://backend:8080`.
 4. `frontend-dev` uses the bind-mounted `frontend` directory and Vite polling
    for container-friendly hot module reloading.
