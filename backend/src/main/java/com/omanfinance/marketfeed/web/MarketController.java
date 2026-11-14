@@ -1,8 +1,7 @@
 package com.omanfinance.marketfeed.web;
 
+import com.omanfinance.marketfeed.web.dto.MarketStatus;
 import com.omanfinance.marketingestion.api.MarketIngestion;
-import com.omanfinance.marketingestion.api.dto.Clock;
-import java.time.Instant;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,20 +19,7 @@ public class MarketController {
 
   /** The last Alpaca {@code /v2/clock} response. */
   @GetMapping("/status")
-  public MarketStatusResponse getMarketStatus() {
-    return MarketStatusResponse.from(marketIngestion.getMarketStatus());
-  }
-
-  /**
-   * {@code MarketStatus} in {@code api_contract.yaml}. {@link Clock} keeps Alpaca's snake_case
-   * names for reading {@code /v2/clock}, so it is not returned directly.
-   */
-  public record MarketStatusResponse(
-      Instant timestamp, boolean isOpen, Instant nextOpen, Instant nextClose) {
-
-    static MarketStatusResponse from(Clock clock) {
-      return new MarketStatusResponse(
-          clock.timestamp(), clock.isOpen(), clock.nextOpen(), clock.nextClose());
-    }
+  public MarketStatus getMarketStatus() {
+    return MarketStatus.from(marketIngestion.getMarketStatus());
   }
 }
