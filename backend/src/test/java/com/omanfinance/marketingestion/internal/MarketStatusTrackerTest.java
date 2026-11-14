@@ -18,7 +18,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import reactor.test.scheduler.VirtualTimeScheduler;
 
-class MarketClockTest {
+class MarketStatusTrackerTest {
 
   /** Monday during trading hours: closes at 16:00 ET. */
   private static final Clock OPEN =
@@ -55,7 +55,7 @@ class MarketClockTest {
   void holdsTheStatusFetchedAtStartup() {
     when(client.fetch()).thenReturn(OPEN);
 
-    MarketClock clock = start();
+    MarketStatusTracker clock = start();
 
     assertThat(clock.current()).isEqualTo(OPEN);
     assertThat(waits).isEmpty();
@@ -64,7 +64,7 @@ class MarketClockTest {
   @Test
   void doesNotAskAlpacaAgainWhenReadingTheStatus() {
     when(client.fetch()).thenReturn(OPEN);
-    MarketClock clock = start();
+    MarketStatusTracker clock = start();
 
     clock.current();
     clock.current();
@@ -76,7 +76,7 @@ class MarketClockTest {
   void retriesWithGrowingWaitsWhenAlpacaIsUnavailableAtStartup() {
     when(client.fetch()).thenThrow(unavailable()).thenThrow(unavailable()).thenReturn(OPEN);
 
-    MarketClock clock = start();
+    MarketStatusTracker clock = start();
 
     assertThat(clock.current()).isEqualTo(OPEN);
     assertThat(waits).containsExactly(Duration.ofSeconds(2), Duration.ofSeconds(4));
@@ -91,7 +91,7 @@ class MarketClockTest {
         .hasMessageContaining("GET /v2/clock")
         .hasMessageContaining("3 attempts")
         .hasCauseInstanceOf(AlpacaUnavailableException.class);
-    verify(client, times(MarketClock.STARTUP_ATTEMPTS)).fetch();
+    verify(client, times(MarketStatusTracker.STARTUP_ATTEMPTS)).fetch();
   }
 
   @Test
@@ -106,17 +106,18 @@ class MarketClockTest {
   @Test
   void refreshesJustAfterTheCloseAndThenJustAfterTheOpen() {
     when(client.fetch()).thenReturn(OPEN, CLOSED, OPEN_NEXT_DAY);
-    MarketClock clock = start();
+    MarketStatusTracker clock = start();
     Duration untilClose = Duration.between(OPEN.timestamp(), OPEN.nextClose());
 
-    advance(untilClose.plus(MarketClock.BOUNDARY_MARGIN).minusMillis(1));
+    advance(untilClose.plus(MarketStatusTracker.BOUNDARY_MARGIN).minusMillis(1));
     assertThat(clock.current()).isEqualTo(OPEN);
 
     advance(Duration.ofMillis(1));
     assertThat(clock.current()).isEqualTo(CLOSED);
 
     advance(
-        Duration.between(CLOSED.timestamp(), CLOSED.nextOpen()).plus(MarketClock.BOUNDARY_MARGIN));
+        Duration.between(CLOSED.timestamp(), CLOSED.nextOpen())
+            .plus(MarketStatusTracker.BOUNDARY_MARGIN));
     assertThat(clock.current()).isEqualTo(OPEN_NEXT_DAY);
     verify(client, times(3)).fetch();
   }
@@ -131,8 +132,8 @@ class MarketClockTest {
             Instant.parse("2026-11-30T14:30:00Z"),
             Instant.parse("2026-11-27T18:00:00Z"));
 
-    assertThat(MarketClock.waitBeforeNextRefresh(earlyCloseDay))
-        .isEqualTo(Duration.ofHours(3).plus(MarketClock.BOUNDARY_MARGIN));
+    assertThat(MarketStatusTracker.waitBeforeNextRefresh(earlyCloseDay))
+        .isEqualTo(Duration.ofHours(3).plus(MarketStatusTracker.BOUNDARY_MARGIN));
   }
 
   @Test
@@ -144,14 +145,14 @@ class MarketClockTest {
             Instant.parse("2026-11-10T14:30:00Z"),
             Instant.parse("2026-11-09T21:00:00Z"));
 
-    assertThat(MarketClock.waitBeforeNextRefresh(stillOpenAfterClose))
-        .isEqualTo(MarketClock.MIN_REFRESH_WAIT);
+    assertThat(MarketStatusTracker.waitBeforeNextRefresh(stillOpenAfterClose))
+        .isEqualTo(MarketStatusTracker.MIN_REFRESH_WAIT);
   }
 
   @Test
   void keepsTheOldStatusWhenARefreshFails() {
     when(client.fetch()).thenReturn(OPEN).thenThrow(unavailable());
-    MarketClock clock = start();
+    MarketStatusTracker clock = start();
 
     advance(Duration.ofDays(1));
 
@@ -162,7 +163,7 @@ class MarketClockTest {
   @Test
   void stopsRefreshingWhenStopped() {
     when(client.fetch()).thenReturn(OPEN, CLOSED);
-    MarketClock clock = start();
+    MarketStatusTracker clock = start();
 
     clock.stop();
     advance(Duration.ofDays(1));
@@ -181,7 +182,7 @@ class MarketClockTest {
             closedAt("2026-11-09T23:15:30Z"),
             closedAt("2026-11-10T07:15:30Z"),
             OPEN_NEXT_DAY);
-    MarketClock clock = startWithRefreshEvery(Duration.ofHours(8));
+    MarketStatusTracker clock = startWithRefreshEvery(Duration.ofHours(8));
 
     advanceTo("2026-11-10T14:31:00Z");
 
@@ -208,7 +209,7 @@ class MarketClockTest {
         .thenThrow(unavailable())
         .thenReturn(
             closedAt("2026-11-09T23:15:30Z"), closedAt("2026-11-10T07:15:30Z"), OPEN_NEXT_DAY);
-    MarketClock clock = startWithRefreshEvery(Duration.ofHours(8));
+    MarketStatusTracker clock = startWithRefreshEvery(Duration.ofHours(8));
 
     advanceTo("2026-11-09T21:00:05Z");
     assertThat(clock.current()).isEqualTo(OPEN);
@@ -230,12 +231,12 @@ class MarketClockTest {
     verifyNoInteractions(client);
   }
 
-  private MarketClock start() {
+  private MarketStatusTracker start() {
     return startWithRefreshEvery(NO_SAFETY_NET);
   }
 
-  private MarketClock startWithRefreshEvery(Duration refreshInterval) {
-    return new MarketClock(client, waits::add, scheduler, refreshInterval);
+  private MarketStatusTracker startWithRefreshEvery(Duration refreshInterval) {
+    return new MarketStatusTracker(client, waits::add, scheduler, refreshInterval);
   }
 
   /** Closed on Monday evening or Tuesday morning, as Alpaca reports it at {@code timestamp}. */

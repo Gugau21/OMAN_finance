@@ -13,7 +13,7 @@ flowchart LR
     redisCandles[("Redis<br/>candles:{symbol}")]
 
     subgraph backend["Backend (Spring Boot)"]
-        ingestion["MarketIngestion<br/><i>incl. MarketClock</i>"]
+        ingestion["MarketIngestion<br/><i>incl. MarketStatusTracker</i>"]
         buffer["CandleBuffer"]
         feed["ClientFeed"]
     end
@@ -152,11 +152,11 @@ flowchart TB
 
     subgraph ingestion["<b>marketingestion</b>"]
         direction LR
-        barsClient["<b>CachingBarsClient → AlpacaBarsClient</b><br/><small>GET /v2/stocks/bars<br/>returns cached raw bars if Redis has every minute,<br/>else fetches all pages from Alpaca with feed=iex,<br/>caches the settled minutes, returns the raw response<br/>Redis down: bars come from Alpaca<br/>429: one retry after Retry-After</small>"]
+        barsClient["<b>BarHistory → AlpacaBarsClient</b><br/><small>GET /v2/stocks/bars<br/>returns cached raw bars if Redis has every minute,<br/>else fetches all pages from Alpaca with feed=iex,<br/>caches the settled minutes, returns the raw response<br/>Redis down: bars come from Alpaca<br/>429: one retry after Retry-After</small>"]
         barRepo["<b>BarRedisRepository</b><br/><small>raw Alpaca bars, one entry per minute<br/>none:{ms} for a minute with no trades<br/>deletes entries older than the retention</small>"]
         stockRepo["<b>StockRepository</b><br/><small>SELECT / INSERT / DELETE on Stock<br/>keeps the symbol list in memory</small>"]
         ingestionApi{{"<i>«interface»</i><br/><b>MarketIngestion</b><br/><small>streamBars(): stream of Bars<br/>getBars(BarsRequest): BarsResponse<br/>getMarketStatus(): Clock<br/>streamMarketStatus(): stream of Clocks<br/>getTrackedStocks(): list of Stocks<br/>addSymbol(symbol)<br/>removeSymbol(symbol)</small>"}}
-        clock["<b>MarketClock</b><br/><small>calls /v2/clock at startup, at next open / close<br/>and every 15 min (safety net)<br/>holds the last response in memory</small>"]
+        clock["<b>MarketStatusTracker</b><br/><small>calls /v2/clock at startup, at next open / close<br/>and every 15 min (safety net)<br/>holds the last response in memory</small>"]
         barHub["<b>LiveBarStream</b><br/><small>emits each Bar to every subscriber<br/>no saving</small>"]
         barsRequest["<i>«record»</i><br/><b>BarsRequest</b><br/><small>query of GET /v2/stocks/bars · free plan</small><small><table style='white-space:nowrap'><tr><td align='left'><b>symbols</b></td><td align='left'>AAPL,MSFT</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>timeframe</b></td><td align='left'>1Min</td><td align='left'><i>required</i></td></tr><tr><td align='left'><b>start</b></td><td align='left'>RFC-3339</td><td align='left'><i>start of day</i></td></tr><tr><td align='left'><b>end</b></td><td align='left'>RFC-3339</td><td align='left'><i>now</i></td></tr><tr><td align='left'><b>limit</b></td><td align='left'>1 – 10000</td><td align='left'><i>1000</i></td></tr><tr><td align='left'><b>sort</b></td><td align='left'>asc | desc</td><td align='left'><i>asc</i></td></tr><tr><td align='left'><b>adjustment</b></td><td align='left'>raw | split | dividend | spin-off | all</td><td align='left'><i>raw</i></td></tr><tr><td align='left'><b>asof</b></td><td align='left'>YYYY-MM-DD</td><td align='left'><i>today</i></td></tr><tr><td align='left'><b>currency</b></td><td align='left'>ISO 4217</td><td align='left'><i>USD</i></td></tr><tr><td align='left'><b>page_token</b></td><td align='left'>next_page_token</td><td align='left'><i>—</i></td></tr></table></small>"]
         streamClient["<b>AlpacaStreamClient</b><br/><small>WS connect, auth, subscribe,<br/>unsubscribe, reconnect<br/>JSON → Bar, no changes</small>"]
@@ -291,7 +291,7 @@ flowchart TB
   Both are saved in Redis under different keys, so the same minute can exist
   twice in two shapes:
   - `bars:{symbol}`: raw bars from `/v2/stocks/bars` responses, owned by
-    `MarketIngestion` and saved by `CachingBarsClient` through
+    `MarketIngestion` and saved by `BarHistory` through
     `BarRedisRepository`. It works as a cache, described below. Live bars
     from the WebSocket are not saved raw;
   - `candles:{symbol}`: candles, owned by `CandleBuffer`, last 60 per symbol.
@@ -324,7 +324,7 @@ flowchart TB
   - Either way the caller gets the same bars Alpaca would send: values are
     not checked or changed, and `none` entries never leave the repository.
 - **Alpaca errors.** Every REST call to Alpaca goes through
-  `AlpacaErrorHandling`, so callers of `MarketIngestion` never see Spring's
+  `AlpacaRestErrorHandling`, so callers of `MarketIngestion` never see Spring's
   HTTP client exceptions:
   - **401 / 403** → `AlpacaConfigException`. Its message says to check
     `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY`. It is not logged here;
@@ -336,9 +336,9 @@ flowchart TB
     `AlpacaUnavailableException`, with the I/O error as the cause. The
     connect and read timeouts are `alpaca.connect-timeout` (5 s) and
     `alpaca.read-timeout` (10 s).
-  - The caller (`CandleBackfiller`, `MarketClock`) handles both exceptions;
+  - The caller (`CandleBackfiller`, `MarketStatusTracker`) handles both exceptions;
     ClientFeed never sees them.
-- `MarketClock` keeps the market status in memory, not in Redis. It calls
+- `MarketStatusTracker` keeps the market status in memory, not in Redis. It calls
   Alpaca `GET /v2/clock` on the trading API (`alpaca.trading-base-url`):
   - **Startup:** while the bean is created, so `getMarketStatus()` has a
     value before the web server starts and before `CandleBackfiller` runs.

@@ -37,7 +37,7 @@ import reactor.core.scheduler.Schedulers;
  */
 @Component
 @Profile("!fake")
-class MarketClock {
+class MarketStatusTracker {
 
   /** How many times to ask for the first status before giving up. */
   static final int STARTUP_ATTEMPTS = 3;
@@ -57,7 +57,7 @@ class MarketClock {
    */
   static final Duration MIN_REFRESH_WAIT = Duration.ofSeconds(5);
 
-  private static final Logger log = LoggerFactory.getLogger(MarketClock.class);
+  private static final Logger log = LoggerFactory.getLogger(MarketStatusTracker.class);
 
   private final AlpacaClockClient client;
   private final Scheduler scheduler;
@@ -65,11 +65,11 @@ class MarketClock {
   private Disposable boundaryRefresh = Disposables.disposed();
 
   @Autowired
-  MarketClock(AlpacaClockClient client, AlpacaProperties properties) {
+  MarketStatusTracker(AlpacaClockClient client, AlpacaProperties properties) {
     this(
         client,
         Thread::sleep,
-        Schedulers.newSingle("market-clock", true),
+        Schedulers.newSingle("market-status", true),
         properties.clockRefreshInterval());
   }
 
@@ -83,9 +83,9 @@ class MarketClock {
    * @throws AlpacaConfigException at once when Alpaca rejects the API keys, since retrying cannot
    *     fix that
    */
-  MarketClock(
+  MarketStatusTracker(
       AlpacaClockClient client,
-      AlpacaErrorHandling.Sleeper sleeper,
+      AlpacaRestErrorHandling.Sleeper sleeper,
       Scheduler scheduler,
       Duration refreshInterval) {
     if (refreshInterval == null || refreshInterval.isNegative() || refreshInterval.isZero()) {
@@ -152,7 +152,7 @@ class MarketClock {
     return wait.compareTo(MIN_REFRESH_WAIT) < 0 ? MIN_REFRESH_WAIT : wait;
   }
 
-  private Clock fetchAtStartup(AlpacaErrorHandling.Sleeper sleeper) {
+  private Clock fetchAtStartup(AlpacaRestErrorHandling.Sleeper sleeper) {
     Duration wait = FIRST_RETRY_WAIT;
     for (int attempt = 1; ; attempt++) {
       try {
@@ -178,7 +178,7 @@ class MarketClock {
     }
   }
 
-  private static void sleep(AlpacaErrorHandling.Sleeper sleeper, Duration wait) {
+  private static void sleep(AlpacaRestErrorHandling.Sleeper sleeper, Duration wait) {
     try {
       sleeper.sleep(wait);
     } catch (InterruptedException e) {

@@ -34,7 +34,7 @@ class AlpacaRestClientConfig {
    * A {@link RestClient} rooted at {@code baseUrl}. It sends the API keys with every request and
    * gives up after {@code alpaca.connect-timeout} or {@code alpaca.read-timeout}. Alpaca's error
    * answers become the exceptions {@code MarketIngestion} documents, and a 429 is retried once
-   * after at most {@code alpaca.max-retry-wait} (see {@link AlpacaErrorHandling}).
+   * after at most {@code alpaca.max-retry-wait} (see {@link AlpacaRestErrorHandling}).
    */
   private static RestClient alpacaRestClient(
       RestClient.Builder builder, AlpacaProperties properties, URI baseUrl) {
@@ -42,7 +42,7 @@ class AlpacaRestClientConfig {
     requestFactory.setConnectTimeout(properties.connectTimeout());
     requestFactory.setReadTimeout(properties.readTimeout());
 
-    return AlpacaErrorHandling.applyTo(builder, properties.maxRetryWait(), Thread::sleep)
+    return AlpacaRestErrorHandling.applyTo(builder, properties.maxRetryWait(), Thread::sleep)
         .requestFactory(requestFactory)
         .baseUrl(baseUrl.toString())
         .defaultHeader(API_KEY_ID_HEADER, properties.apiKeyId())

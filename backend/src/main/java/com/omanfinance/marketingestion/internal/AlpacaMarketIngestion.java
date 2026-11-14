@@ -23,8 +23,8 @@ import reactor.core.publisher.Flux;
 public class AlpacaMarketIngestion implements MarketIngestion {
 
   private final List<Stock> trackedStocks;
-  private final CachingBarsClient barsClient;
-  private final MarketClock marketClock;
+  private final BarHistory barHistory;
+  private final MarketStatusTracker statusTracker;
 
   /**
    * Reads the tracked stocks from the {@code stock} table once, so {@link #getTrackedStocks} never
@@ -33,13 +33,13 @@ public class AlpacaMarketIngestion implements MarketIngestion {
    * @throws IllegalStateException when the table is empty, so the application does not start
    */
   AlpacaMarketIngestion(
-      StockRepository stocks, CachingBarsClient barsClient, MarketClock marketClock) {
+      StockRepository stocks, BarHistory barHistory, MarketStatusTracker statusTracker) {
     this.trackedStocks = stocks.findAllByOrderByIdAsc().stream().map(StockEntity::toStock).toList();
     if (trackedStocks.isEmpty()) {
       throw new IllegalStateException("The stock table is empty: no stocks to track");
     }
-    this.barsClient = barsClient;
-    this.marketClock = marketClock;
+    this.barHistory = barHistory;
+    this.statusTracker = statusTracker;
   }
 
   /** Not implemented yet: comes with A7 (live bars from the Alpaca WebSocket). */
@@ -50,17 +50,19 @@ public class AlpacaMarketIngestion implements MarketIngestion {
 
   /**
    * Every page of bars from Alpaca {@code GET /v2/stocks/bars}, or the same bars from the Redis bar
-   * cache when it holds every requested minute (see {@link CachingBarsClient}).
+   * cache when it holds every requested minute (see {@link BarHistory}).
    */
   @Override
   public BarsResponse getBars(BarsRequest request) {
-    return barsClient.getBars(request);
+    return barHistory.getBars(request);
   }
 
-  /** The status {@link MarketClock} holds; it was fetched before this bean could be created. */
+  /**
+   * The status {@link MarketStatusTracker} holds; it was fetched before this bean could be created.
+   */
   @Override
   public Clock getMarketStatus() {
-    return marketClock.current();
+    return statusTracker.current();
   }
 
   /** Not implemented yet: comes with A6 (market status pushed to browsers). */

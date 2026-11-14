@@ -23,12 +23,12 @@ class AlpacaMarketIngestionTest {
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
           .withBean(StockRepository.class, AlpacaMarketIngestionTest::repositoryWithOneStock)
-          .withBean(CachingBarsClient.class, () -> mock(CachingBarsClient.class))
-          .withBean(MarketClock.class, () -> mock(MarketClock.class))
+          .withBean(BarHistory.class, () -> mock(BarHistory.class))
+          .withBean(MarketStatusTracker.class, () -> mock(MarketStatusTracker.class))
           .withUserConfiguration(AlpacaMarketIngestion.class, FakeMarketIngestion.class);
 
-  private final CachingBarsClient barsClient = mock(CachingBarsClient.class);
-  private final MarketClock marketClock = mock(MarketClock.class);
+  private final BarHistory barHistory = mock(BarHistory.class);
+  private final MarketStatusTracker statusTracker = mock(MarketStatusTracker.class);
 
   @Test
   void isTheOnlyMarketIngestionWithoutTheFakeProfile() {
@@ -67,7 +67,7 @@ class AlpacaMarketIngestionTest {
                 new StockEntity("MSFT", "Microsoft Corporation")));
 
     AlpacaMarketIngestion ingestion =
-        new AlpacaMarketIngestion(repository, barsClient, marketClock);
+        new AlpacaMarketIngestion(repository, barHistory, statusTracker);
 
     assertThat(ingestion.getTrackedStocks())
         .containsExactly(
@@ -78,7 +78,7 @@ class AlpacaMarketIngestionTest {
   void readsTheTableOnlyOnce() {
     StockRepository repository = repositoryWithOneStock();
     AlpacaMarketIngestion ingestion =
-        new AlpacaMarketIngestion(repository, barsClient, marketClock);
+        new AlpacaMarketIngestion(repository, barHistory, statusTracker);
 
     ingestion.getTrackedStocks();
     ingestion.getTrackedStocks();
@@ -89,7 +89,7 @@ class AlpacaMarketIngestionTest {
   @Test
   void trackedStocksAreUnmodifiable() {
     AlpacaMarketIngestion ingestion =
-        new AlpacaMarketIngestion(repositoryWithOneStock(), barsClient, marketClock);
+        new AlpacaMarketIngestion(repositoryWithOneStock(), barHistory, statusTracker);
 
     assertThatThrownBy(() -> ingestion.getTrackedStocks().add(new Stock("KO", "Coca-Cola")))
         .isInstanceOf(UnsupportedOperationException.class);
@@ -100,7 +100,7 @@ class AlpacaMarketIngestionTest {
     StockRepository repository = mock(StockRepository.class);
     when(repository.findAllByOrderByIdAsc()).thenReturn(List.of());
 
-    assertThatThrownBy(() -> new AlpacaMarketIngestion(repository, barsClient, marketClock))
+    assertThatThrownBy(() -> new AlpacaMarketIngestion(repository, barHistory, statusTracker))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("empty");
   }
@@ -114,25 +114,25 @@ class AlpacaMarketIngestionTest {
             Instant.parse("2026-11-05T14:30:00Z"),
             Instant.parse("2026-11-05T14:35:00Z"));
     BarsResponse merged = new BarsResponse(Map.of("AAPL", List.of()), null);
-    when(barsClient.getBars(request)).thenReturn(merged);
+    when(barHistory.getBars(request)).thenReturn(merged);
     AlpacaMarketIngestion ingestion =
-        new AlpacaMarketIngestion(repositoryWithOneStock(), barsClient, marketClock);
+        new AlpacaMarketIngestion(repositoryWithOneStock(), barHistory, statusTracker);
 
     assertThat(ingestion.getBars(request)).isSameAs(merged);
-    verify(barsClient).getBars(request);
+    verify(barHistory).getBars(request);
   }
 
   @Test
-  void getsTheMarketStatusFromTheMarketClock() {
+  void getsTheMarketStatusFromTheStatusTracker() {
     Clock status =
         new Clock(
             Instant.parse("2026-11-09T15:15:30Z"),
             true,
             Instant.parse("2026-11-10T14:30:00Z"),
             Instant.parse("2026-11-09T21:00:00Z"));
-    when(marketClock.current()).thenReturn(status);
+    when(statusTracker.current()).thenReturn(status);
     AlpacaMarketIngestion ingestion =
-        new AlpacaMarketIngestion(repositoryWithOneStock(), barsClient, marketClock);
+        new AlpacaMarketIngestion(repositoryWithOneStock(), barHistory, statusTracker);
 
     assertThat(ingestion.getMarketStatus()).isEqualTo(status);
   }

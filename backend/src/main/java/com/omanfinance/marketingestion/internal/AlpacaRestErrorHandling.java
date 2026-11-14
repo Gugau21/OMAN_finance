@@ -27,7 +27,7 @@ import org.springframework.web.client.RestClient;
  *   <li>5xx, a timeout or a broken connection: {@link AlpacaUnavailableException}.
  * </ul>
  */
-final class AlpacaErrorHandling {
+final class AlpacaRestErrorHandling {
 
   /**
    * How long to wait after a 429 whose {@code Retry-After} is missing or not a number of seconds.
@@ -40,7 +40,7 @@ final class AlpacaErrorHandling {
     void sleep(Duration duration) throws InterruptedException;
   }
 
-  private AlpacaErrorHandling() {}
+  private AlpacaRestErrorHandling() {}
 
   /**
    * Adds the error mapping to {@code builder}, so every client it builds has it.
@@ -56,11 +56,11 @@ final class AlpacaErrorHandling {
             (request, body, execution) ->
                 retryOnceWhenRateLimited(request, body, execution, maxRetryWait, sleeper))
         .defaultStatusHandler(
-            AlpacaErrorHandling::isRejectedKeys, AlpacaErrorHandling::throwRejectedKeys)
+            AlpacaRestErrorHandling::isRejectedKeys, AlpacaRestErrorHandling::throwRejectedKeys)
         .defaultStatusHandler(
-            AlpacaErrorHandling::isRateLimited, AlpacaErrorHandling::throwStillRateLimited)
+            AlpacaRestErrorHandling::isRateLimited, AlpacaRestErrorHandling::throwStillRateLimited)
         .defaultStatusHandler(
-            HttpStatusCode::is5xxServerError, AlpacaErrorHandling::throwServerError);
+            HttpStatusCode::is5xxServerError, AlpacaRestErrorHandling::throwServerError);
   }
 
   /**
