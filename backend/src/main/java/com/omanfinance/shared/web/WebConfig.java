@@ -1,6 +1,5 @@
 package com.omanfinance.shared.web;
 
-import java.util.Arrays;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -11,12 +10,8 @@ public class WebConfig implements WebMvcConfigurer {
 
   private final String[] allowedOrigins;
 
-  public WebConfig(@Value("${app.cors.allowed-origins:http://localhost}") String allowedOrigins) {
-    this.allowedOrigins =
-        Arrays.stream(allowedOrigins.split(","))
-            .map(String::trim)
-            .filter(origin -> !origin.isEmpty())
-            .toArray(String[]::new);
+  public WebConfig(@Value(AllowedOrigins.PROPERTY) String allowedOrigins) {
+    this.allowedOrigins = AllowedOrigins.parse(allowedOrigins);
   }
 
   @Override
