@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
@@ -17,6 +18,8 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  *
  * <p>Heart-beats are {@code 10000,10000}. Nginx closes a WebSocket after 10 minutes without
  * traffic, and the stock topics are silent while the market is closed.
+ *
+ * <p>Clients only subscribe: {@link RejectClientSendInterceptor} rejects every {@code SEND}.
  */
 @Configuration
 @EnableWebSocketMessageBroker
@@ -46,6 +49,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
   @Override
   public void registerStompEndpoints(StompEndpointRegistry registry) {
     registry.addEndpoint("/ws").setAllowedOrigins(allowedOrigins);
+  }
+
+  @Override
+  public void configureClientInboundChannel(ChannelRegistration registration) {
+    registration.interceptors(new RejectClientSendInterceptor());
   }
 
   @Override
