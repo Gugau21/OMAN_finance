@@ -9,7 +9,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 /**
- * Sends each live bar that {@code AlpacaStreamClient} receives to every current subscriber of
+ * Sends each live bar that {@link AlpacaStreamClient} receives to every current subscriber of
  * {@code streamBars()}, inside the backend. It does not connect anywhere itself.
  *
  * <p>Bars are not stored or replayed: a subscriber gets only the bars published after it
