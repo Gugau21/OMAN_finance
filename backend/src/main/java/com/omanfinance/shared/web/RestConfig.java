@@ -5,12 +5,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/** CORS for the REST API, from {@code app.cors.allowed-origins}. */
 @Configuration
-public class WebConfig implements WebMvcConfigurer {
+public class RestConfig implements WebMvcConfigurer {
 
   private final String[] allowedOrigins;
 
-  public WebConfig(@Value(AllowedOrigins.PROPERTY) String allowedOrigins) {
+  public RestConfig(@Value(AllowedOrigins.PROPERTY) String allowedOrigins) {
     this.allowedOrigins = AllowedOrigins.parse(allowedOrigins);
   }
 
