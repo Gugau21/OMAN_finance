@@ -52,6 +52,12 @@ class BarHistoryLiveTest {
 
   private static final Instant END = Instant.parse("2026-11-05T14:35:00Z");
 
+  /**
+   * The time the cache sees: a day after the range, so every minute has settled and none is older
+   * than {@code alpaca.bar-cache-retention}, whatever the real date is.
+   */
+  private static final Instant NOW = END.plus(Duration.ofDays(1));
+
   @Autowired private BarRedisRepository cache;
   @Autowired private StringRedisTemplate redis;
   @Autowired private TestClock clock;
@@ -62,7 +68,7 @@ class BarHistoryLiveTest {
   @BeforeEach
   void setUp() {
     deleteTestKeys();
-    clock.set(Instant.now());
+    clock.set(NOW);
     AlpacaProperties properties =
         new AlpacaProperties(
             System.getenv("ALPACA_API_KEY_ID"),
