@@ -13,8 +13,6 @@ class StreamStartupSubscriber {
   /** After {@link com.omanfinance.marketfeed.web.CandlePublisher} (order 3). */
   private final int START_AFTER_CANDLE_BUFFER_STARTUP_AND_CANDLE_PUBLISHER = 4;
 
-  private final int WINDOW_FROM_WHICH_TO_COUNT_STATS = 60;
-
   public StreamStartupSubscriber(CandleBuffer candleBuffer) {
     this.candleBuffer = candleBuffer;
   }
@@ -22,6 +20,6 @@ class StreamStartupSubscriber {
   @EventListener(ApplicationReadyEvent.class)
   @Order(START_AFTER_CANDLE_BUFFER_STARTUP_AND_CANDLE_PUBLISHER)
   void startStreams() {
-    candleBuffer.ensureStreamStockStatStarted(WINDOW_FROM_WHICH_TO_COUNT_STATS);
+    candleBuffer.ensureStreamStockStatStarted(MarketFeedConstants.WINDOW_SIZE);
   }
 }

@@ -4,6 +4,7 @@ import com.omanfinance.candlebuffer.api.CandleBuffer;
 import com.omanfinance.candlebuffer.api.dto.PricePoint;
 import com.omanfinance.candlebuffer.api.dto.StockStat;
 import com.omanfinance.marketfeed.MarketDataNotReadyException;
+import com.omanfinance.marketfeed.MarketFeedConstants;
 import com.omanfinance.marketfeed.StockNotFoundException;
 import com.omanfinance.marketfeed.web.dto.ContractCandle;
 import com.omanfinance.marketfeed.web.dto.ContractPricePoint;
@@ -23,8 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/stocks")
 public class StockDataController {
 
-  private static final int WINDOW_SIZE = 60;
-
   private final CandleBuffer candleBuffer;
   private final MarketIngestion marketIngestion;
 
@@ -38,7 +37,8 @@ public class StockDataController {
     requireReady();
     List<Sparkline> sparklines = new ArrayList<>();
     for (Stock stock : marketIngestion.getTrackedStocks()) {
-      List<PricePoint> points = candleBuffer.getPricePoints(stock.symbol(), WINDOW_SIZE);
+      List<PricePoint> points =
+          candleBuffer.getPricePoints(stock.symbol(), MarketFeedConstants.WINDOW_SIZE);
       requireDataForSymbol(stock.symbol(), points);
       List<ContractPricePoint> contractPoints =
           points.stream().map(ContractPricePoint::from).toList();
@@ -52,7 +52,7 @@ public class StockDataController {
     requireReady();
     List<StockStat> stats = new ArrayList<>();
     for (Stock stock : marketIngestion.getTrackedStocks()) {
-      StockStat stat = candleBuffer.getStockStat(stock.symbol(), WINDOW_SIZE);
+      StockStat stat = candleBuffer.getStockStat(stock.symbol(), MarketFeedConstants.WINDOW_SIZE);
       requireDataForSymbol(stock.symbol(), stat);
       stats.add(stat);
     }
@@ -64,7 +64,7 @@ public class StockDataController {
     requireReady();
     requireTracked(symbol);
     List<ContractCandle> candles =
-        candleBuffer.getLastCandles(symbol, WINDOW_SIZE).stream()
+        candleBuffer.getLastCandles(symbol, MarketFeedConstants.WINDOW_SIZE).stream()
             .map(ContractCandle::from)
             .toList();
     requireDataForSymbol(symbol, candles.isEmpty() ? null : candles);
