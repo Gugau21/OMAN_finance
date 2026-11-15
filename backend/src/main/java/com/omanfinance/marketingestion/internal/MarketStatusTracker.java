@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
@@ -34,10 +36,13 @@ import reactor.core.scheduler.Schedulers;
  * failed refresh keeps the old status and schedules nothing, so after a failed call at the open or
  * close, the next safety-net refresh corrects the status and schedules the next boundary again.
  * Every successful refresh, safety-net ones included, replaces the pending boundary refresh.
+ *
+ * <p>Every status fetched, at startup and on every successful refresh, is also emitted on {@link
+ * #statuses()}, even when only its {@code timestamp} changed.
  */
 @Component
 @Profile("!fake")
-class MarketClock {
+class MarketStatusTracker {
 
   /** How many times to ask for the first status before giving up. */
   static final int STARTUP_ATTEMPTS = 3;
@@ -57,19 +62,27 @@ class MarketClock {
    */
   static final Duration MIN_REFRESH_WAIT = Duration.ofSeconds(5);
 
-  private static final Logger log = LoggerFactory.getLogger(MarketClock.class);
+  private static final Logger log = LoggerFactory.getLogger(MarketStatusTracker.class);
 
-  private final AlpacaClockClient client;
+  private final AlpacaRestClockClient client;
   private final Scheduler scheduler;
   private volatile Clock current;
+
+  /**
+   * Replays the latest status to each new subscriber, then sends it every status after that. Only
+   * emitted to while holding this object's lock, so a new subscriber never sees an older status
+   * than {@link #current}.
+   */
+  private final Sinks.Many<Clock> statuses = Sinks.many().replay().latest();
+
   private Disposable boundaryRefresh = Disposables.disposed();
 
   @Autowired
-  MarketClock(AlpacaClockClient client, AlpacaProperties properties) {
+  MarketStatusTracker(AlpacaRestClockClient client, AlpacaProperties properties) {
     this(
         client,
         Thread::sleep,
-        Schedulers.newSingle("market-clock", true),
+        Schedulers.newSingle("market-status", true),
         properties.clockRefreshInterval());
   }
 
@@ -83,9 +96,9 @@ class MarketClock {
    * @throws AlpacaConfigException at once when Alpaca rejects the API keys, since retrying cannot
    *     fix that
    */
-  MarketClock(
-      AlpacaClockClient client,
-      AlpacaErrorHandling.Sleeper sleeper,
+  MarketStatusTracker(
+      AlpacaRestClockClient client,
+      AlpacaRestErrorHandling.Sleeper sleeper,
       Scheduler scheduler,
       Duration refreshInterval) {
     if (refreshInterval == null || refreshInterval.isNegative() || refreshInterval.isZero()) {
@@ -94,8 +107,10 @@ class MarketClock {
     }
     this.client = client;
     this.scheduler = scheduler;
-    this.current = fetchAtStartup(sleeper);
+    Clock first = fetchAtStartup(sleeper);
     synchronized (this) {
+      current = first;
+      emit(first);
       scheduleBoundaryRefresh(current);
     }
     scheduler.schedulePeriodically(
@@ -108,6 +123,14 @@ class MarketClock {
   /** The last market status Alpaca returned. Never null. */
   Clock current() {
     return current;
+  }
+
+  /**
+   * Every status fetched from now on, starting with the current one. Shared by all subscribers; it
+   * does not complete, and a failed refresh emits nothing.
+   */
+  Flux<Clock> statuses() {
+    return statuses.asFlux();
   }
 
   /** Cancels the pending refreshes when the application shuts down. */
@@ -130,8 +153,17 @@ class MarketClock {
       return;
     }
     current = clock;
+    emit(clock);
     log.info("Market status refreshed: {}", clock);
     scheduleBoundaryRefresh(clock);
+  }
+
+  /** Sends {@code clock} to every subscriber of {@link #statuses()}; called holding the lock. */
+  private void emit(Clock clock) {
+    Sinks.EmitResult result = statuses.tryEmitNext(clock);
+    if (result.isFailure()) {
+      log.warn("Market status {} not emitted: {}", clock, result);
+    }
   }
 
   /** Cancels the pending boundary refresh, if any, and schedules one for {@code clock}. */
@@ -152,7 +184,7 @@ class MarketClock {
     return wait.compareTo(MIN_REFRESH_WAIT) < 0 ? MIN_REFRESH_WAIT : wait;
   }
 
-  private Clock fetchAtStartup(AlpacaErrorHandling.Sleeper sleeper) {
+  private Clock fetchAtStartup(AlpacaRestErrorHandling.Sleeper sleeper) {
     Duration wait = FIRST_RETRY_WAIT;
     for (int attempt = 1; ; attempt++) {
       try {
@@ -163,7 +195,7 @@ class MarketClock {
         if (attempt == STARTUP_ATTEMPTS) {
           throw new IllegalStateException(
               "Could not get the market status from Alpaca GET %s after %d attempts"
-                  .formatted(AlpacaClockClient.CLOCK_PATH, STARTUP_ATTEMPTS),
+                  .formatted(AlpacaRestClockClient.CLOCK_PATH, STARTUP_ATTEMPTS),
               e);
         }
         log.warn(
@@ -178,7 +210,7 @@ class MarketClock {
     }
   }
 
-  private static void sleep(AlpacaErrorHandling.Sleeper sleeper, Duration wait) {
+  private static void sleep(AlpacaRestErrorHandling.Sleeper sleeper, Duration wait) {
     try {
       sleeper.sleep(wait);
     } catch (InterruptedException e) {

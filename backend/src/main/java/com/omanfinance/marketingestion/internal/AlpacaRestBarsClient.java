@@ -16,7 +16,7 @@ import org.springframework.web.client.RestClient;
 /** Reads historical bars from Alpaca {@code GET /v2/stocks/bars}. */
 @Component
 @Profile("!fake")
-class AlpacaBarsClient {
+class AlpacaRestBarsClient {
 
   static final String BARS_PATH = "/v2/stocks/bars";
 
@@ -25,7 +25,7 @@ class AlpacaBarsClient {
 
   private final RestClient restClient;
 
-  AlpacaBarsClient(@Qualifier("alpacaDataRestClient") RestClient restClient) {
+  AlpacaRestBarsClient(@Qualifier("alpacaDataRestClient") RestClient restClient) {
     this.restClient = restClient;
   }
 

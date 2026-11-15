@@ -15,28 +15,28 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-class AlpacaClockClientTest {
+class AlpacaRestClockClientTest {
 
   private static final String BASE_URL = "https://paper-api.alpaca.markets";
 
   private MockRestServiceServer server;
-  private AlpacaClockClient client;
+  private AlpacaRestClockClient client;
 
   @BeforeEach
   void setUp() {
     RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
     server = MockRestServiceServer.bindTo(builder).build();
-    client = new AlpacaClockClient(builder.build());
+    client = new AlpacaRestClockClient(builder.build());
   }
 
   @Test
   void returnsTheRecordedClockFieldByField() {
     server
-        .expect(requestTo(BASE_URL + AlpacaClockClient.CLOCK_PATH))
+        .expect(requestTo(BASE_URL + AlpacaRestClockClient.CLOCK_PATH))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
             withSuccess(
-                new ClassPathResource("alpaca/clock-open.json"), MediaType.APPLICATION_JSON));
+                new ClassPathResource("alpaca/rest-clock-open.json"), MediaType.APPLICATION_JSON));
 
     Clock clock = client.fetch();
 

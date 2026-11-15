@@ -9,13 +9,13 @@ import org.springframework.web.client.RestClient;
 /** Reads the market status from Alpaca {@code GET /v2/clock} on the trading API. */
 @Component
 @Profile("!fake")
-class AlpacaClockClient {
+class AlpacaRestClockClient {
 
   static final String CLOCK_PATH = "/v2/clock";
 
   private final RestClient restClient;
 
-  AlpacaClockClient(@Qualifier("alpacaTradingRestClient") RestClient restClient) {
+  AlpacaRestClockClient(@Qualifier("alpacaTradingRestClient") RestClient restClient) {
     this.restClient = restClient;
   }
 

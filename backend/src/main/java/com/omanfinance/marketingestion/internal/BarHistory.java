@@ -28,7 +28,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("!fake")
-class CachingBarsClient {
+class BarHistory {
 
   /**
    * How long after a minute ends its bar may still change on Alpaca's side. A minute is cached only
@@ -37,20 +37,21 @@ class CachingBarsClient {
   static final Duration SETTLE_TIME = Duration.ofMinutes(1);
 
   private static final Duration MINUTE = Duration.ofMinutes(1);
-  private static final Logger log = LoggerFactory.getLogger(CachingBarsClient.class);
+  private static final Logger log = LoggerFactory.getLogger(BarHistory.class);
 
-  private final AlpacaBarsClient alpaca;
+  private final AlpacaRestBarsClient alpaca;
   private final BarRedisRepository cache;
   private final Clock clock;
 
-  CachingBarsClient(AlpacaBarsClient alpaca, BarRedisRepository cache, Clock clock) {
+  BarHistory(AlpacaRestBarsClient alpaca, BarRedisRepository cache, Clock clock) {
     this.alpaca = alpaca;
     this.cache = cache;
     this.clock = clock;
   }
 
   /**
-   * The first {@code limit} bars for {@code request}, as {@link AlpacaBarsClient#fetchUpToLimit}.
+   * The first {@code limit} bars for {@code request}, as {@link
+   * AlpacaRestBarsClient#fetchUpToLimit}.
    */
   BarsResponse getBars(BarsRequest request) {
     if (!isCacheable(request)) {

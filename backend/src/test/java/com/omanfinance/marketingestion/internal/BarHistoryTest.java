@@ -42,7 +42,7 @@ import org.springframework.web.client.RestClient;
 @Import({BarRedisRepository.class, TestClock.Config.class})
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @EnableConfigurationProperties(AlpacaProperties.class)
-class CachingBarsClientTest {
+class BarHistoryTest {
 
   private static final String BASE_URL = "https://data.alpaca.markets";
   private static final String A = "TEST_CACHE_A";
@@ -62,7 +62,7 @@ class CachingBarsClientTest {
   @Autowired private TestClock clock;
 
   private MockRestServiceServer alpaca;
-  private CachingBarsClient client;
+  private BarHistory client;
 
   @BeforeEach
   void setUp() {
@@ -70,7 +70,7 @@ class CachingBarsClientTest {
     clock.set(NOW);
     RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
     alpaca = MockRestServiceServer.bindTo(builder).build();
-    client = new CachingBarsClient(new AlpacaBarsClient(builder.build()), cache, clock);
+    client = new BarHistory(new AlpacaRestBarsClient(builder.build()), cache, clock);
   }
 
   @AfterEach
@@ -260,7 +260,7 @@ class CachingBarsClientTest {
   private void alpacaAnswers(ExpectedCount count, BarsResponse response)
       throws JsonProcessingException {
     alpaca
-        .expect(count, requestTo(startsWith(BASE_URL + AlpacaBarsClient.BARS_PATH)))
+        .expect(count, requestTo(startsWith(BASE_URL + AlpacaRestBarsClient.BARS_PATH)))
         .andRespond(withSuccess(json.writeValueAsString(response), MediaType.APPLICATION_JSON));
   }
 

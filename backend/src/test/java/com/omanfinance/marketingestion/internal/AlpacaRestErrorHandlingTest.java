@@ -30,7 +30,7 @@ import org.springframework.test.web.client.response.DefaultResponseCreator;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
-class AlpacaErrorHandlingTest {
+class AlpacaRestErrorHandlingTest {
 
   private static final String BASE_URL = "https://data.alpaca.markets";
   private static final String PATH = "/v2/stocks/bars";
@@ -46,9 +46,9 @@ class AlpacaErrorHandlingTest {
   }
 
   /** Builds a new client whose waits before a retry go to {@code sleeper}. */
-  private void useSleeper(AlpacaErrorHandling.Sleeper sleeper) {
+  private void useSleeper(AlpacaRestErrorHandling.Sleeper sleeper) {
     RestClient.Builder builder =
-        AlpacaErrorHandling.applyTo(
+        AlpacaRestErrorHandling.applyTo(
             RestClient.builder().baseUrl(BASE_URL), MAX_RETRY_WAIT, sleeper);
     server = MockRestServiceServer.bindTo(builder).build();
     client = builder.build();
@@ -161,7 +161,7 @@ class AlpacaErrorHandlingTest {
 
     get();
 
-    assertThat(waits).containsExactly(AlpacaErrorHandling.DEFAULT_RETRY_WAIT);
+    assertThat(waits).containsExactly(AlpacaRestErrorHandling.DEFAULT_RETRY_WAIT);
   }
 
   @Test

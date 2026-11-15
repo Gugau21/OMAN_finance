@@ -32,7 +32,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 /** {@code getBars} keeps working with bars from Alpaca when Redis cannot be reached. */
 @ExtendWith(OutputCaptureExtension.class)
-class CachingBarsClientRedisDownTest {
+class BarHistoryRedisDownTest {
 
   private static final Instant T0 = Instant.parse("2026-11-05T14:30:00Z");
   private static final Instant T5 = T0.plusSeconds(300);
@@ -42,9 +42,9 @@ class CachingBarsClientRedisDownTest {
   private static final BarsResponse FROM_ALPACA =
       new BarsResponse(Map.of("AAPL", List.of(bar(T0))), null);
 
-  private final AlpacaBarsClient alpaca = mock(AlpacaBarsClient.class);
+  private final AlpacaRestBarsClient alpaca = mock(AlpacaRestBarsClient.class);
   private final BarRedisRepository cache = mock(BarRedisRepository.class);
-  private final CachingBarsClient client = new CachingBarsClient(alpaca, cache, CLOCK);
+  private final BarHistory client = new BarHistory(alpaca, cache, CLOCK);
 
   @Test
   void getsTheBarsFromAlpacaWhenReadingTheCacheFails(CapturedOutput output) {
@@ -80,11 +80,22 @@ class CachingBarsClientRedisDownTest {
               new StringRedisTemplate(factory),
               new ObjectMapper().findAndRegisterModules(),
               new AlpacaProperties(
-                  null, null, null, null, null, null, null, null, Duration.ofDays(7), null),
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  Duration.ofDays(7),
+                  null,
+                  null,
+                  null),
               CLOCK);
       when(alpaca.fetchUpToLimit(REQUEST)).thenReturn(FROM_ALPACA);
 
-      BarsResponse response = new CachingBarsClient(alpaca, realCache, CLOCK).getBars(REQUEST);
+      BarsResponse response = new BarHistory(alpaca, realCache, CLOCK).getBars(REQUEST);
 
       assertThat(response).isEqualTo(FROM_ALPACA);
       assertThat(output)

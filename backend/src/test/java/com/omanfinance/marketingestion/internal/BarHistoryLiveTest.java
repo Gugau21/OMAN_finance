@@ -32,7 +32,7 @@ import org.springframework.web.client.RestClient;
  *
  * <pre>
  * set -a; source ../.env; set +a
- * ./gradlew test --tests '*CachingBarsClientLiveTest' -i
+ * ./gradlew test --tests '*BarHistoryLiveTest' -i
  * </pre>
  *
  * <p>Uses SPY and QQQ, which the backend does not track, so a running backend's cache is not
@@ -43,7 +43,7 @@ import org.springframework.web.client.RestClient;
 @Import({BarRedisRepository.class, TestClock.Config.class})
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @EnableConfigurationProperties(AlpacaProperties.class)
-class CachingBarsClientLiveTest {
+class BarHistoryLiveTest {
 
   private static final List<String> SYMBOLS = List.of("SPY", "QQQ");
 
@@ -62,8 +62,8 @@ class CachingBarsClientLiveTest {
   @Autowired private StringRedisTemplate redis;
   @Autowired private TestClock clock;
 
-  private AlpacaBarsClient alpaca;
-  private CachingBarsClient client;
+  private AlpacaRestBarsClient alpaca;
+  private BarHistory client;
 
   @BeforeEach
   void setUp() {
@@ -82,11 +82,13 @@ class CachingBarsClientLiveTest {
             Duration.ofSeconds(10),
             Duration.ofSeconds(30),
             Duration.ofDays(7),
-            Duration.ofMinutes(15));
+            Duration.ofMinutes(15),
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(60));
     RestClient restClient =
         new AlpacaRestClientConfig().alpacaDataRestClient(RestClient.builder(), properties);
-    alpaca = spy(new AlpacaBarsClient(restClient));
-    client = new CachingBarsClient(alpaca, cache, clock);
+    alpaca = spy(new AlpacaRestBarsClient(restClient));
+    client = new BarHistory(alpaca, cache, clock);
   }
 
   @AfterEach

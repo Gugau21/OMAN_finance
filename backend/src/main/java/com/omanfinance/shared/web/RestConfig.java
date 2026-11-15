@@ -1,22 +1,18 @@
 package com.omanfinance.shared.web;
 
-import java.util.Arrays;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/** CORS for the REST API, from {@code app.cors.allowed-origins}. */
 @Configuration
-public class WebConfig implements WebMvcConfigurer {
+public class RestConfig implements WebMvcConfigurer {
 
   private final String[] allowedOrigins;
 
-  public WebConfig(@Value("${app.cors.allowed-origins:http://localhost}") String allowedOrigins) {
-    this.allowedOrigins =
-        Arrays.stream(allowedOrigins.split(","))
-            .map(String::trim)
-            .filter(origin -> !origin.isEmpty())
-            .toArray(String[]::new);
+  public RestConfig(@Value(AllowedOrigins.PROPERTY) String allowedOrigins) {
+    this.allowedOrigins = AllowedOrigins.parse(allowedOrigins);
   }
 
   @Override
