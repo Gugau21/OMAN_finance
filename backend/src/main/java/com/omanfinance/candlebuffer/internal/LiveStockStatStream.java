@@ -1,6 +1,7 @@
 package com.omanfinance.candlebuffer.internal;
 
 import com.omanfinance.candlebuffer.api.dto.Candle;
+import com.omanfinance.candlebuffer.api.dto.PricePoint;
 import com.omanfinance.candlebuffer.api.dto.StockStat;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -21,6 +22,8 @@ class LiveStockStatStream {
   /** Late subscribers only see candles emitted after they subscribe. */
   private final Many<StockStat> stockStatSink = Sinks.many().multicast().onBackpressureBuffer();
 
+  private final Many<PricePoint> pricePointSink = Sinks.many().multicast().onBackpressureBuffer();
+
   private Disposable subscription;
 
   public LiveStockStatStream(
@@ -36,6 +39,15 @@ class LiveStockStatStream {
    */
   public Flux<StockStat> streamStockStat() {
     return stockStatSink.asFlux();
+  }
+
+  /**
+   * Call {@link #ensureStreamStockStatStarted(int)} once before subscribing here, or the flux stays
+   * idle. Live price points emitted when candles are received. Late subscribers only receive stats
+   * from after they subscribe; nothing is replayed.
+   */
+  public Flux<PricePoint> streamPricePoint() {
+    return pricePointSink.asFlux();
   }
 
   /**
@@ -66,13 +78,28 @@ class LiveStockStatStream {
     }
   }
 
-  private StockStat onCandle(Candle candle, int windowSize) {
-    StockStat stat = stockStatCalculator.getStockStat(candle.symbol(), windowSize);
+  private void onCandle(Candle candle, int windowSize) {
+    emitStockStat(candle, windowSize);
+    emitPricePoint(candle);
+  }
 
+  private void emitStockStat(Candle candle, int windowSize) {
+    StockStat stat = stockStatCalculator.getStockStat(candle.symbol(), windowSize);
+    if (stat == null) {
+      log.warn("no stockStat for {}", candle.symbol());
+      return;
+    }
     Sinks.EmitResult result = stockStatSink.tryEmitNext(stat);
     if (result.isFailure()) {
       log.warn("failed to emit stockStat for {}: {}", candle.symbol(), result);
     }
-    return stat;
+  }
+
+  private void emitPricePoint(Candle candle) {
+    PricePoint point = PricePoint.fromCandle(candle);
+    Sinks.EmitResult result = pricePointSink.tryEmitNext(point);
+    if (result.isFailure()) {
+      log.warn("failed to emit pricePoint for {}: {}", candle.symbol(), result);
+    }
   }
 }

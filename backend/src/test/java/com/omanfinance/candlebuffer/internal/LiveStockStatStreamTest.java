@@ -1,15 +1,18 @@
 package com.omanfinance.candlebuffer.internal;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.omanfinance.candlebuffer.api.dto.Candle;
+import com.omanfinance.candlebuffer.api.dto.PricePoint;
 import com.omanfinance.candlebuffer.api.dto.StockStat;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +41,20 @@ class LiveStockStatStreamTest {
   }
 
   @Test
-  void ensureStreamStockStatStarted_emitsStatOnStreamStockStat() {
+  void ensureStreamStockStatStarted_receivesCandleFromStreamCandles() {
+    Candle candle = candle("AAPL");
+    AtomicReference<Candle> received = new AtomicReference<>();
+    when(liveCandleStream.streamCandles()).thenReturn(Flux.just(candle).doOnNext(received::set));
+    when(stockStatCalculator.getStockStat("AAPL", WINDOW_SIZE)).thenReturn(stockStat("AAPL"));
+
+    liveStockStatStream.ensureStreamStockStatStarted(WINDOW_SIZE);
+
+    verify(liveCandleStream).streamCandles();
+    assertThat(received).hasValue(candle);
+  }
+
+  @Test
+  void streamStockStat_emitsExpectedStockStat() {
     Candle candle = candle("AAPL");
     StockStat expected = stockStat("AAPL");
     when(liveCandleStream.streamCandles()).thenReturn(Flux.just(candle));
@@ -67,6 +83,20 @@ class LiveStockStatStreamTest {
 
     verify(stockStatCalculator).getStockStat("AAPL", WINDOW_SIZE);
     verifyNoMoreInteractions(stockStatCalculator);
+  }
+
+  @Test
+  void streamPricePoint_emitsExpectedPricePoint() {
+    Candle candle = candle("AAPL");
+    PricePoint expected = PricePoint.fromCandle(candle);
+    when(liveCandleStream.streamCandles()).thenReturn(Flux.just(candle));
+    when(stockStatCalculator.getStockStat("AAPL", WINDOW_SIZE)).thenReturn(stockStat("AAPL"));
+
+    StepVerifier.create(liveStockStatStream.streamPricePoint())
+        .then(() -> liveStockStatStream.ensureStreamStockStatStarted(WINDOW_SIZE))
+        .expectNext(expected)
+        .thenCancel()
+        .verify();
   }
 
   private static Candle candle(String symbol) {
