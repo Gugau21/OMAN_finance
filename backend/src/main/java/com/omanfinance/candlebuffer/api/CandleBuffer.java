@@ -49,9 +49,9 @@ public interface CandleBuffer {
   Flux<StockStat> streamStockStats();
 
   /**
-   * A new price point (timestamp and close) each time a candle is saved for a tracked symbol. The
-   * stream is shared: every subscriber gets each point emitted after it subscribes, and nothing is
-   * replayed.
+   * A new price point (symbol, timestamp and close) each time a candle is saved for a tracked
+   * symbol. The stream is shared: every subscriber gets each point emitted after it subscribes, and
+   * nothing is replayed.
    *
    * <p><b>Call {@link #ensureStreamStockStatStarted(int)} once before subscribing</b>, or this flux
    * never receives live price points.

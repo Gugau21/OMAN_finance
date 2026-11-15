@@ -2,11 +2,18 @@ package com.omanfinance.candlebuffer.api.dto;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Objects;
 
-/** Close price at the start of a minute */
-public record PricePoint(Instant timestamp, BigDecimal price) {
+/** Close price of one minute for one stock. */
+public record PricePoint(String symbol, Instant timestamp, BigDecimal price) {
+
+  public PricePoint {
+    Objects.requireNonNull(symbol, "symbol");
+    Objects.requireNonNull(timestamp, "timestamp");
+    Objects.requireNonNull(price, "price");
+  }
 
   public static PricePoint fromCandle(Candle candle) {
-    return new PricePoint(candle.timestamp(), candle.close());
+    return new PricePoint(candle.symbol(), candle.timestamp(), candle.close());
   }
 }

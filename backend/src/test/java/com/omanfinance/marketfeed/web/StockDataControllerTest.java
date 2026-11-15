@@ -105,7 +105,7 @@ class StockDataControllerTest {
     List<PricePoint> points = new ArrayList<>();
     for (int i = 0; i < WINDOW_SIZE; i++) {
       Instant t = BASE.plusSeconds(60L * i);
-      points.add(new PricePoint(t, new BigDecimal("100").add(new BigDecimal(i))));
+      points.add(new PricePoint("AAPL", t, new BigDecimal("100").add(new BigDecimal(i))));
     }
     return points;
   }

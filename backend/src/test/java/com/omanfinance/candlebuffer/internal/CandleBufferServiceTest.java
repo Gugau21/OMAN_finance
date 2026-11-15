@@ -72,7 +72,8 @@ class CandleBufferServiceTest {
   @Test
   void getPricePoints_returns_what_calculator_returns() {
     List<PricePoint> points =
-        List.of(new PricePoint(Instant.parse("2026-10-29T16:00:00Z"), new BigDecimal("101")));
+        List.of(
+            new PricePoint("AAPL", Instant.parse("2026-10-29T16:00:00Z"), new BigDecimal("101")));
     when(stockStatCalculator.getPricePoints("AAPL", 60)).thenReturn(points);
 
     assertThat(service.getPricePoints("AAPL", 60)).isSameAs(points);
@@ -131,7 +132,7 @@ class CandleBufferServiceTest {
   @Test
   void streamPricePoints_receives_pricePoints() {
     PricePoint expected =
-        new PricePoint(Instant.parse("2026-10-29T16:00:00Z"), new BigDecimal("101"));
+        new PricePoint("AAPL", Instant.parse("2026-10-29T16:00:00Z"), new BigDecimal("101"));
     when(liveStockStatStream.streamPricePoint()).thenReturn(Flux.just(expected));
 
     StepVerifier.create(service.streamPricePoints()).expectNext(expected).thenCancel().verify();

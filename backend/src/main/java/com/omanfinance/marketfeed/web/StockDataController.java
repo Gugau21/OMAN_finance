@@ -6,6 +6,7 @@ import com.omanfinance.candlebuffer.api.dto.StockStat;
 import com.omanfinance.marketfeed.MarketDataNotReadyException;
 import com.omanfinance.marketfeed.StockNotFoundException;
 import com.omanfinance.marketfeed.web.dto.ContractCandle;
+import com.omanfinance.marketfeed.web.dto.ContractPricePoint;
 import com.omanfinance.marketfeed.web.dto.Sparkline;
 import com.omanfinance.marketfeed.web.dto.StockCandles;
 import com.omanfinance.marketingestion.api.MarketIngestion;
@@ -39,7 +40,9 @@ public class StockDataController {
     for (Stock stock : marketIngestion.getTrackedStocks()) {
       List<PricePoint> points = candleBuffer.getPricePoints(stock.symbol(), WINDOW_SIZE);
       requireDataForSymbol(stock.symbol(), points);
-      sparklines.add(new Sparkline(stock.symbol(), points));
+      List<ContractPricePoint> contractPoints =
+          points.stream().map(ContractPricePoint::from).toList();
+      sparklines.add(new Sparkline(stock.symbol(), contractPoints));
     }
     return sparklines;
   }
