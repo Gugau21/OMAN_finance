@@ -28,6 +28,8 @@ class LiveCandleStream {
   /** Late subscribers only see candles emitted after they subscribe. */
   private final Many<Candle> candleSink = Sinks.many().multicast().onBackpressureBuffer();
 
+  private final int START_AFTER_CANDLE_BUFFER_STARTUP = 2;
+
   public LiveCandleStream(MarketIngestion marketIngestion, CandleRedisRepository redis) {
     this.marketIngestion = marketIngestion;
     this.redis = redis;
@@ -38,7 +40,7 @@ class LiveCandleStream {
   }
 
   @EventListener(ApplicationReadyEvent.class)
-  @Order(2)
+  @Order(START_AFTER_CANDLE_BUFFER_STARTUP)
   void start() {
     subscription =
         marketIngestion

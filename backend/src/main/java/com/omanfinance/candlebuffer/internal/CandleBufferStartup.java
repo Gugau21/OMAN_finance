@@ -15,13 +15,15 @@ class CandleBufferStartup {
   private final AtomicBoolean ready = new AtomicBoolean(false);
   private static final int NUMBER_OF_CANDLES_PER_SYMBOL_AT_STARTUP = 60;
 
+  private final int START_FIRST_IN_CANDLE_BUFFER = 1;
+
   CandleBufferStartup(MarketIngestion marketIngestion, CandleBackfiller candleBackfiller) {
     this.marketIngestion = marketIngestion;
     this.candleBackfiller = candleBackfiller;
   }
 
   @EventListener(ApplicationReadyEvent.class)
-  @Order(1)
+  @Order(START_FIRST_IN_CANDLE_BUFFER)
   void backfillCandles() {
     for (Stock stock : marketIngestion.getTrackedStocks()) {
       candleBackfiller.fetchAndSaveCandles(stock.symbol(), NUMBER_OF_CANDLES_PER_SYMBOL_AT_STARTUP);
