@@ -9,18 +9,24 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 @Service
-public class CandleBackfillerService implements CandleBuffer {
+class CandleBufferService implements CandleBuffer {
   private final CandleHistory candleHistory;
   private final StockStatCalculator stockStatCalculator;
   private final CandleBufferStartup candleBufferStartup;
+  private final LiveCandleStream liveCandleStream;
+  private final LiveStockStatStream liveStockStatStream;
 
-  public CandleBackfillerService(
+  public CandleBufferService(
       CandleHistory candleHistory,
       StockStatCalculator stockStatCalculator,
-      CandleBufferStartup candleBufferStartup) {
+      CandleBufferStartup candleBufferStartup,
+      LiveCandleStream liveCandleStream,
+      LiveStockStatStream liveStockStatStream) {
     this.candleHistory = candleHistory;
     this.stockStatCalculator = stockStatCalculator;
     this.candleBufferStartup = candleBufferStartup;
+    this.liveCandleStream = liveCandleStream;
+    this.liveStockStatStream = liveStockStatStream;
   }
 
   @Override
@@ -30,7 +36,7 @@ public class CandleBackfillerService implements CandleBuffer {
 
   @Override
   public Flux<Candle> streamCandles() {
-    throw new UnsupportedOperationException("streamCandles is not implemented in this iteration");
+    return liveCandleStream.streamCandles();
   }
 
   @Override
@@ -39,8 +45,18 @@ public class CandleBackfillerService implements CandleBuffer {
   }
 
   @Override
-  public Flux<StockStat> streamStockStat() {
-    throw new UnsupportedOperationException("streamStockStat is not implemented in this iteration");
+  public Flux<StockStat> streamStockStats() {
+    return liveStockStatStream.streamStockStat();
+  }
+
+  @Override
+  public Flux<PricePoint> streamPricePoints() {
+    return liveStockStatStream.streamPricePoint();
+  }
+
+  @Override
+  public void ensureStreamStockStatStarted(int windowSize) {
+    liveStockStatStream.ensureStreamStockStatStarted(windowSize);
   }
 
   @Override
