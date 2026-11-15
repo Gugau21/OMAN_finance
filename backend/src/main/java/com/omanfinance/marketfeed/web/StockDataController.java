@@ -59,6 +59,15 @@ public class StockDataController {
     return stats;
   }
 
+  @GetMapping("/{symbol}/stat")
+  public StockStat getStockStat(@PathVariable String symbol) {
+    requireReady();
+    requireTracked(symbol);
+    StockStat stat = candleBuffer.getStockStat(symbol, MarketFeedConstants.WINDOW_SIZE);
+    requireDataForSymbol(symbol, stat);
+    return stat;
+  }
+
   @GetMapping("/{symbol}/candles")
   public StockCandles getStockCandles(@PathVariable String symbol) {
     requireReady();

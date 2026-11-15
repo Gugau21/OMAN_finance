@@ -78,6 +78,18 @@ class StockDataControllerTest {
   }
 
   @Test
+  void singleStat_returns_contract_shape_for_tracked_symbol() throws Exception {
+    when(candleBuffer.isReady()).thenReturn(true);
+    when(candleBuffer.getStockStat(eq("AAPL"), eq(MarketFeedConstants.WINDOW_SIZE)))
+        .thenReturn(sampleStat("AAPL"));
+
+    mvc.perform(get("/api/stocks/AAPL/stat"))
+        .andExpect(status().isOk())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.symbol").value("AAPL"));
+  }
+
+  @Test
   void candles_returns_contract_shape_for_tracked_symbol() throws Exception {
     when(candleBuffer.isReady()).thenReturn(true);
     when(candleBuffer.getLastCandles(eq("AAPL"), eq(MarketFeedConstants.WINDOW_SIZE)))
@@ -97,6 +109,14 @@ class StockDataControllerTest {
     mvc.perform(get("/api/stocks/sparkline")).andExpect(status().isServiceUnavailable());
     mvc.perform(get("/api/stocks/stat")).andExpect(status().isServiceUnavailable());
     mvc.perform(get("/api/stocks/AAPL/candles")).andExpect(status().isServiceUnavailable());
+    mvc.perform(get("/api/stocks/AAPL/stat")).andExpect(status().isServiceUnavailable());
+  }
+
+  @Test
+  void singleStat_returns404_for_unknown_symbol() throws Exception {
+    when(candleBuffer.isReady()).thenReturn(true);
+
+    mvc.perform(get("/api/stocks/XYZ/stat")).andExpect(status().isNotFound());
   }
 
   @Test
