@@ -32,7 +32,7 @@ import org.springframework.web.client.RestClient;
  *
  * <pre>
  * set -a; source ../.env; set +a
- * ./gradlew test --tests '*CachingBarsClientLiveTest' -i
+ * ./gradlew test --tests '*BarHistoryLiveTest' -i
  * </pre>
  *
  * <p>Uses SPY and QQQ, which the backend does not track, so a running backend's cache is not
@@ -43,7 +43,7 @@ import org.springframework.web.client.RestClient;
 @Import({BarRedisRepository.class, TestClock.Config.class})
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @EnableConfigurationProperties(AlpacaProperties.class)
-class CachingBarsClientLiveTest {
+class BarHistoryLiveTest {
 
   private static final List<String> SYMBOLS = List.of("SPY", "QQQ");
 
@@ -52,17 +52,23 @@ class CachingBarsClientLiveTest {
 
   private static final Instant END = Instant.parse("2026-11-05T14:35:00Z");
 
+  /**
+   * The time the cache sees: a day after the range, so every minute has settled and none is older
+   * than {@code alpaca.bar-cache-retention}, whatever the real date is.
+   */
+  private static final Instant NOW = END.plus(Duration.ofDays(1));
+
   @Autowired private BarRedisRepository cache;
   @Autowired private StringRedisTemplate redis;
   @Autowired private TestClock clock;
 
-  private AlpacaBarsClient alpaca;
-  private CachingBarsClient client;
+  private AlpacaRestBarsClient alpaca;
+  private BarHistory client;
 
   @BeforeEach
   void setUp() {
     deleteTestKeys();
-    clock.set(Instant.now());
+    clock.set(NOW);
     AlpacaProperties properties =
         new AlpacaProperties(
             System.getenv("ALPACA_API_KEY_ID"),
@@ -76,11 +82,13 @@ class CachingBarsClientLiveTest {
             Duration.ofSeconds(10),
             Duration.ofSeconds(30),
             Duration.ofDays(7),
-            Duration.ofMinutes(15));
+            Duration.ofMinutes(15),
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(60));
     RestClient restClient =
         new AlpacaRestClientConfig().alpacaDataRestClient(RestClient.builder(), properties);
-    alpaca = spy(new AlpacaBarsClient(restClient));
-    client = new CachingBarsClient(alpaca, cache, clock);
+    alpaca = spy(new AlpacaRestBarsClient(restClient));
+    client = new BarHistory(alpaca, cache, clock);
   }
 
   @AfterEach

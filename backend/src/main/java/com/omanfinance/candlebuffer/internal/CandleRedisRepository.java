@@ -28,8 +28,18 @@ class CandleRedisRepository {
     this.objectMapper = objectMapper;
   }
 
-  void saveCandles(String symbol, List<Candle> candles) {
-    String key = "candles:" + symbol;
+  /**
+   * Appends each candle to {@code candles:{symbol}} (symbol taken from the list), then trims the
+   * set so only the 60 newest minutes remain. Does nothing when {@code candles} is null or empty.
+   *
+   * @throws CandleRedisRuntimeException when Redis is unavailable, the transaction fails, or a
+   *     candle cannot be serialized
+   */
+  void saveCandles(List<Candle> candles) {
+    if (candles == null || candles.isEmpty()) {
+      return;
+    }
+    String key = "candles:" + candles.getLast().symbol();
 
     redis.execute(
         new SessionCallback<Object>() {
@@ -49,8 +59,13 @@ class CandleRedisRepository {
         });
   }
 
-  void saveCandle(String symbol, Candle candle) {
-    saveCandles(symbol, List.of(candle));
+  /**
+   * Saves a single candle; same Redis rules and trim as {@link #saveCandles(List)}.
+   *
+   * @throws CandleRedisRuntimeException when the write fails; see {@link #saveCandles(List)}
+   */
+  void saveCandle(Candle candle) {
+    saveCandles(List.of(candle));
   }
 
   /**

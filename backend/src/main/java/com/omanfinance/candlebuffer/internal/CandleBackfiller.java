@@ -56,7 +56,7 @@ class CandleBackfiller {
       }
       candles = candles.reversed();
 
-      redis.saveCandles(symbol, candles);
+      redis.saveCandles(candles);
       return candles;
     } catch (AlpacaUnavailableException e) {
       log.warn("Backfill failed for {}, starting with empty candles", symbol, e);

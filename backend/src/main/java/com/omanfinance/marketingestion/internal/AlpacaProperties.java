@@ -18,6 +18,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>{@code clockRefreshInterval} is how often the market status is fetched again from {@code
  * /v2/clock}, on top of the calls at each open and close.
+ *
+ * <p>{@code streamReconnectMinDelay} and {@code streamReconnectMaxDelay} bound the wait before
+ * reconnecting to the {@code streamUrl} WebSocket after it drops. The first retry waits {@code
+ * streamReconnectMinDelay}, each failed one doubles the wait up to {@code streamReconnectMaxDelay},
+ * and a successful subscription resets it.
  */
 @ConfigurationProperties("alpaca")
 public record AlpacaProperties(
@@ -30,14 +35,16 @@ public record AlpacaProperties(
     Duration readTimeout,
     Duration maxRetryWait,
     Duration barCacheRetention,
-    Duration clockRefreshInterval) {
+    Duration clockRefreshInterval,
+    Duration streamReconnectMinDelay,
+    Duration streamReconnectMaxDelay) {
 
   /** Keeps the secret key out of logs. */
   @Override
   public String toString() {
     return ("AlpacaProperties[apiKeyId=%s, apiSecretKey=***, tradingBaseUrl=%s, dataBaseUrl=%s,"
             + " streamUrl=%s, connectTimeout=%s, readTimeout=%s, maxRetryWait=%s, barCacheRetention=%s,"
-            + " clockRefreshInterval=%s]")
+            + " clockRefreshInterval=%s, streamReconnectMinDelay=%s, streamReconnectMaxDelay=%s]")
         .formatted(
             apiKeyId,
             tradingBaseUrl,
@@ -47,6 +54,8 @@ public record AlpacaProperties(
             readTimeout,
             maxRetryWait,
             barCacheRetention,
-            clockRefreshInterval);
+            clockRefreshInterval,
+            streamReconnectMinDelay,
+            streamReconnectMaxDelay);
   }
 }

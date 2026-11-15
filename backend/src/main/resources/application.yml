@@ -40,6 +40,8 @@ alpaca:
   max-retry-wait: ${ALPACA_MAX_RETRY_WAIT:30s}
   bar-cache-retention: ${ALPACA_BAR_CACHE_RETENTION:7d}
   clock-refresh-interval: ${ALPACA_CLOCK_REFRESH_INTERVAL:15m}
+  stream-reconnect-min-delay: ${ALPACA_STREAM_RECONNECT_MIN_DELAY:1s}
+  stream-reconnect-max-delay: ${ALPACA_STREAM_RECONNECT_MAX_DELAY:60s}
 
 management:
   endpoints:
