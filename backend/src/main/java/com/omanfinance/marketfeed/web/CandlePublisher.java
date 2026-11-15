@@ -35,6 +35,7 @@ class CandlePublisher {
 
   private Disposable subscription = Disposables.disposed();
 
+  /** After {@link com.omanfinance.candlebuffer.internal.LiveCandleStream} (order 2). */
   private static final int START_AFTER_LIVE_CANDLE_STREAM = 3;
 
   public CandlePublisher(CandleBuffer candleBuffer, SimpMessageSendingOperations messaging) {

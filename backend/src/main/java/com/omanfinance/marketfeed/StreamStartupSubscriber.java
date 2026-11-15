@@ -10,7 +10,9 @@ import org.springframework.stereotype.Component;
 class StreamStartupSubscriber {
   private final CandleBuffer candleBuffer;
 
+  /** After {@link com.omanfinance.marketfeed.web.CandlePublisher} (order 3). */
   private final int START_AFTER_CANDLE_BUFFER_STARTUP_AND_CANDLE_PUBLISHER = 4;
+
   private final int WINDOW_FROM_WHICH_TO_COUNT_STATS = 60;
 
   public StreamStartupSubscriber(CandleBuffer candleBuffer) {

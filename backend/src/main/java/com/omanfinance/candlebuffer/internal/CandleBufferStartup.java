@@ -15,6 +15,7 @@ class CandleBufferStartup {
   private final AtomicBoolean ready = new AtomicBoolean(false);
   private static final int NUMBER_OF_CANDLES_PER_SYMBOL_AT_STARTUP = 60;
 
+  /** First listener on {@link ApplicationReadyEvent} in the live candle pipeline (order 1). */
   private final int START_FIRST_IN_CANDLE_BUFFER = 1;
 
   CandleBufferStartup(MarketIngestion marketIngestion, CandleBackfiller candleBackfiller) {
