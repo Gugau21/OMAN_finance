@@ -45,8 +45,13 @@ class CandleBufferService implements CandleBuffer {
   }
 
   @Override
-  public Flux<StockStat> streamStockStat() {
+  public Flux<StockStat> streamStockStats() {
     return liveStockStatStream.streamStockStat();
+  }
+
+  @Override
+  public Flux<PricePoint> streamPricePoints() {
+    return liveStockStatStream.streamPricePoint();
   }
 
   @Override

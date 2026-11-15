@@ -123,9 +123,20 @@ class CandleBufferServiceTest {
     StockStat expected = stockStat();
     when(liveStockStatStream.streamStockStat()).thenReturn(Flux.just(expected));
 
-    StepVerifier.create(service.streamStockStat()).expectNext(expected).thenCancel().verify();
+    StepVerifier.create(service.streamStockStats()).expectNext(expected).thenCancel().verify();
 
     verify(liveStockStatStream).streamStockStat();
+  }
+
+  @Test
+  void streamPricePoints_receives_pricePoints() {
+    PricePoint expected =
+        new PricePoint(Instant.parse("2026-10-29T16:00:00Z"), new BigDecimal("101"));
+    when(liveStockStatStream.streamPricePoint()).thenReturn(Flux.just(expected));
+
+    StepVerifier.create(service.streamPricePoints()).expectNext(expected).thenCancel().verify();
+
+    verify(liveStockStatStream).streamPricePoint();
   }
 
   private static StockStat stockStat() {

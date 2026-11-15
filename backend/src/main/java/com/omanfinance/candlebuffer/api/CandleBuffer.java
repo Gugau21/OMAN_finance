@@ -31,10 +31,10 @@ public interface CandleBuffer {
   List<Candle> getLastCandles(String symbol, int numberOfCandles);
 
   /**
-   * Starts emitting on {@link #streamStockStat()}: on each saved candle, recomputes a stat from the
-   * last {@code windowSize} stored candles for that symbol. Call once at startup from the module
-   * that owns the REST/STOMP contract (marketfeed). Must run before anyone subscribes to {@link
-   * #streamStockStat()}.
+   * Starts emitting on {@link #streamStockStats()} and {@link #streamPricePoints()}: on each saved
+   * candle, recomputes a stat from the last {@code windowSize} stored candles for that symbol and
+   * emits a price point from the candle's close. Call once at startup from the module that owns the
+   * REST/STOMP contract (marketfeed). Must run before anyone subscribes to those fluxes.
    */
   void ensureStreamStockStatStarted(int windowSize);
 
@@ -46,7 +46,17 @@ public interface CandleBuffer {
    * <p><b>Call {@link #ensureStreamStockStatStarted(int)} once before subscribing</b>, or this flux
    * never receives live stats.
    */
-  Flux<StockStat> streamStockStat();
+  Flux<StockStat> streamStockStats();
+
+  /**
+   * A new price point (timestamp and close) each time a candle is saved for a tracked symbol. The
+   * stream is shared: every subscriber gets each point emitted after it subscribes, and nothing is
+   * replayed.
+   *
+   * <p><b>Call {@link #ensureStreamStockStatStarted(int)} once before subscribing</b>, or this flux
+   * never receives live price points.
+   */
+  Flux<PricePoint> streamPricePoints();
 
   /**
    * Close price at the start of each of up to {@code numberOfPricePoints} most recent stored
