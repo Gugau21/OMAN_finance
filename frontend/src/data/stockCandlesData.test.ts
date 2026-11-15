@@ -29,9 +29,9 @@ describe('getStockCandles', () => {
     await expect(
       getStockCandles('AAPL', { source: 'mock', scenario: 'empty' }),
     ).resolves.toBeNull();
-    await expect(
-      getStockCandles('AAPL', { source: 'mock', scenario: 'error' }),
-    ).rejects.toThrow('Stock candles mock request failed');
+    await expect(getStockCandles('AAPL', { source: 'mock', scenario: 'error' })).rejects.toThrow(
+      'Stock candles mock request failed',
+    );
   });
 
   it('supports aborting the mock loading scenario', async () => {

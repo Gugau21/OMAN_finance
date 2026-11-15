@@ -1,10 +1,6 @@
 import type { StockStat } from '../types/stock';
 
-import {
-  getConfiguredDataSource,
-  type DataSource,
-  type MockScenario,
-} from './dataSource';
+import { getConfiguredDataSource, type DataSource, type MockScenario } from './dataSource';
 import { parseStockStat } from './responseValidation';
 
 export type StockStatOptions = {

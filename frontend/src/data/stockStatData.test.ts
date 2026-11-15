@@ -21,12 +21,10 @@ describe('getStockStat', () => {
   });
 
   it('supports mock empty and error scenarios', async () => {
-    await expect(
-      getStockStat('AAPL', { source: 'mock', scenario: 'empty' }),
-    ).resolves.toBeNull();
-    await expect(
-      getStockStat('AAPL', { source: 'mock', scenario: 'error' }),
-    ).rejects.toThrow('Stock stat mock request failed');
+    await expect(getStockStat('AAPL', { source: 'mock', scenario: 'empty' })).resolves.toBeNull();
+    await expect(getStockStat('AAPL', { source: 'mock', scenario: 'error' })).rejects.toThrow(
+      'Stock stat mock request failed',
+    );
   });
 
   it('supports aborting the mock loading scenario', async () => {

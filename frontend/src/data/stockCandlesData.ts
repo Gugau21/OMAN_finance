@@ -1,10 +1,6 @@
 import type { Candle, StockCandles } from '../types/stock';
 
-import {
-  getConfiguredDataSource,
-  type DataSource,
-  type MockScenario,
-} from './dataSource';
+import { getConfiguredDataSource, type DataSource, type MockScenario } from './dataSource';
 import { parseStockCandles } from './responseValidation';
 
 export type StockCandlesOptions = {
