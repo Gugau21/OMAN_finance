@@ -37,6 +37,10 @@ The full list of topics and payloads is in [`docs/stomp_contract.yaml`](../docs/
 
 To publish to a new topic from backend code, inject `SimpMessageSendingOperations` and call `convertAndSend("/topic/...", payload)`. The broker is set up in `shared/web/WebSocketConfig`; `marketfeed/web/MarketStatusPublisher` is an example.
 
+## Live bars from Alpaca
+
+The backend keeps one WebSocket open to `ALPACA_STREAM_URL` (IEX by default) and subscribes to the minute bars of every tracked stock. If the connection drops or Alpaca refuses it, the backend reconnects. It first waits `ALPACA_STREAM_RECONNECT_MIN_DELAY` (default `1s`), doubles the wait after each failed attempt up to `ALPACA_STREAM_RECONNECT_MAX_DELAY` (default `60s`), and resets it once the subscription succeeds.
+
 ## Fake market data
 
 Set `SPRING_PROFILES_ACTIVE=fake` to run without Alpaca keys and without connecting to Alpaca. The market is then always open, the backend tracks 5 stocks with synthetic bars, and one synthetic bar per stock arrives every minute. `/topic/market/status` stays silent, as the status never changes; read it from `GET /api/market/status`.
