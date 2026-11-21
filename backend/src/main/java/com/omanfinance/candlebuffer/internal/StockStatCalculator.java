@@ -10,7 +10,7 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
-public class StockStatCalculator {
+class StockStatCalculator {
   private static final int CHANGE_PERCENT_SCALE = 10;
   private static final int PERCENT = 100;
 
@@ -27,6 +27,10 @@ public class StockStatCalculator {
       return null;
     }
 
+    return calculateStockStat(symbol, candles);
+  }
+
+  private StockStat calculateStockStat(String symbol, List<Candle> candles) {
     Instant timestamp = candles.getLast().timestamp();
 
     BigDecimal price = candles.getLast().close();
@@ -39,9 +43,7 @@ public class StockStatCalculator {
             .multiply(BigDecimal.valueOf(PERCENT));
     long volume = candles.stream().mapToLong(Candle::volume).sum();
 
-    StockStat stockStat = new StockStat(symbol, timestamp, price, change, changePercent, volume);
-
-    return stockStat;
+    return new StockStat(symbol, timestamp, price, change, changePercent, volume);
   }
 
   /** Returns {@code null} when there is no data (e.g. backfill failed for this symbol). */

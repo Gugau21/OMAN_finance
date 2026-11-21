@@ -8,7 +8,7 @@ describe('getSparklines', () => {
   });
 
   it('returns 60 points per stock for mock data', async () => {
-    const sparklines = await getSparklines('mock');
+    const sparklines = await getSparklines({ source: 'mock', scenario: 'success' });
 
     if (sparklines === null) {
       throw new Error('Expected mock sparklines');

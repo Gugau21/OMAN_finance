@@ -3,9 +3,7 @@ package com.omanfinance.candlebuffer.internal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,8 +38,7 @@ public class CandleBackfillerTest {
     candleBackfiller.fetchAndSaveCandles("AAPL", 60);
 
     verify(marketIngestion).getBars(any());
-    verify(redis).saveCandles(eq("AAPL"), any());
-    verify(redis, never()).saveCandles(eq("TSLA"), any());
+    verify(redis).saveCandles(any());
   }
 
   @Test

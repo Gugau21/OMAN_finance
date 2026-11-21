@@ -1,0 +1,25 @@
+package com.omanfinance.marketfeed;
+
+import com.omanfinance.candlebuffer.api.CandleBuffer;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+
+@Component
+class StreamStartupSubscriber {
+  private final CandleBuffer candleBuffer;
+
+  /** After {@link com.omanfinance.marketfeed.web.CandlePublisher} (order 3). */
+  private final int START_AFTER_CANDLE_BUFFER_STARTUP_AND_CANDLE_PUBLISHER = 4;
+
+  public StreamStartupSubscriber(CandleBuffer candleBuffer) {
+    this.candleBuffer = candleBuffer;
+  }
+
+  @EventListener(ApplicationReadyEvent.class)
+  @Order(START_AFTER_CANDLE_BUFFER_STARTUP_AND_CANDLE_PUBLISHER)
+  void startStreams() {
+    candleBuffer.ensureStreamStockStatStarted(MarketFeedConstants.WINDOW_SIZE);
+  }
+}

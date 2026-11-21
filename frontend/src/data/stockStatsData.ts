@@ -90,12 +90,14 @@ function getConfiguredScenario(): MockScenario {
 function waitForever(signal?: AbortSignal): Promise<never> {
   return new Promise((_, reject) => {
     if (signal?.aborted) {
-      reject(new Error('Stock stats mock request aborted'));
+      reject(new DOMException('Stock stats mock request aborted', 'AbortError'));
       return;
     }
 
-    signal?.addEventListener('abort', () => reject(new Error('Stock stats mock request aborted')), {
-      once: true,
-    });
+    signal?.addEventListener(
+      'abort',
+      () => reject(new DOMException('Stock stats mock request aborted', 'AbortError')),
+      { once: true },
+    );
   });
 }
