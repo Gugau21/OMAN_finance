@@ -15,7 +15,8 @@ flowchart LR
     subgraph backend["Backend (Spring Boot)"]
         ingestion["MarketIngestion<br/><i>incl. MarketStatusTracker</i>"]
         buffer["CandleBuffer"]
-        feed["ClientFeed"]
+        calc["MarketMetrics"]
+        feed["MarketFeed"]
     end
 
     alpaca -->|"WS: minute bars"| ingestion
@@ -25,7 +26,9 @@ flowchart LR
 
     ingestion -->|"streamBars()<br/>getBars(request)<br/>getTrackedStocks()<br/>getMarketStatus()"| buffer
     buffer <-->|"candles"| redisCandles
-    buffer -->|"streamCandles()<br/>getLastCandles(symbol, 60)<br/>streamStockStat()<br/>getStockStat(symbol)"| feed
+    buffer -->|"streamCandles()<br/>getLastCandles(symbol, 60)"| calc
+    calc -->|"streamStockStats()<br/>getStockStats(symbol)<br/>streamPricePoints()<br/>getPricePoints(symbol)"| feed
+    buffer -->|"streamCandles()<br/>getLastCandles(symbol, 60)"| feed
     ingestion -->|"getTrackedStocks()<br/>getMarketStatus()"| feed
     feed <-->|"REST /api/*<br/>STOMP /ws"| browser
 ```
@@ -94,18 +97,52 @@ minutes of candles per symbol complete and ready to serve.
 **Dependencies:** MarketIngestion (live bars, historical bars, tracked
 symbols, market status).
 
-### ClientFeed
+### MarketMetrics
 
-**Purpose:** The backend's interface to the browser. It serves snapshots
-over REST and pushes live candles over WebSocket.
+**Purpose:** Derives market-facing statistics from candles. It subscribes to
+CandleBuffer's candle stream and computes values that the frontend needs to
+display stock overviews and sparkline graphs.
 
 **Responsibilities:**
 
-- Serve REST endpoints and host the STOMP-over-WebSocket endpoint 
+- Subscribe to CandleBuffer's live candle stream and, for each new candle,
+  recompute the statistics for that symbol from the last 60 candles.
+- Compute `StockStat` (current price, absolute change, percentage change,
+  volume) from the last 60 candles of a symbol.
+- Compute `PricePoint` (a single price extracted from a candle, for
+  sparkline graphs) from the last 60 candles of a symbol.
+- Emit each newly computed `StockStat` and `PricePoint` on its own streams.
+- Serve on-demand requests: `getStockStats(symbol)` and
+  `getPricePoints(symbol)` for API.
+- Contain no storage logic: it reads candles through CandleBuffer's
+  interface and holds no persistent state of its own.
+
+**Owns:**
+
+- the `StockStat` model (price, change, change%, volume);
+- the `PricePoint` model (a single price from a candle);
+- the calculation logic that turns a window of candles into those models.
+
+**Dependencies:** CandleBuffer (live candle stream, last 60 candles).
+
+### MarketFeed
+
+**Purpose:** The backend's interface to the browser. It serves snapshots
+over REST and pushes live updates over WebSocket.
+
+**Responsibilities:**
+
+- Serve REST endpoints and host the STOMP-over-WebSocket endpoint
   that browsers connect to.
-- Listen to live candles and publish each one to the topic of its symbol.
+- Listen to live candles from CandleBuffer and publish each one to the topic
+  of its symbol.
+- Subscribe to MarketMetrics's StockStat and PricePoint streams and push
+  updates to the browser over WebSocket.
+- Call MarketMetrics on API requests that need computed stats or price
+  points.
 - Convert internal models into the response format the frontend expects.
-- Contain no market data logic and never access Alpaca or Redis directly.
+- Contain no market data or calculation logic and never access Alpaca or
+  Redis directly.
 
 **Owns:**
 
@@ -113,6 +150,7 @@ over REST and pushes live candles over WebSocket.
 - the STOMP endpoint (`/ws`) and its topics (`/topic/candles/{symbol}`);
 
 **Dependencies:** CandleBuffer (live candles, last 60 candles),
+MarketMetrics (live StockStats and PricePoints, on-demand stats),
 MarketIngestion (tracked symbols, market status).
 
 ## 3. Component Overview
@@ -167,7 +205,6 @@ flowchart TB
         subgraph bufferGap[" "]
             direction LR
             detector["<b>CandleGapDetector</b><br/><small>reads stored candles, returns the gap or none:<br/>before a given candle<br/>or in the last n trading minutes</small>"]
-            statCalc["<b>StockStatCalculator</b><br/><small>receives each candle from LiveCandleStream<br/>reads the last 60 candles<br/>computes price, change, change %, volume<br/>emits the stat, serves getStockStat(symbol)</small>"]
             backfiller["<b>CandleBackfiller</b><br/><small>builds BarsRequest for a<br/>missing range (start, end, limit, sort)<br/>Candle.from(symbol, bar)<br/>saves and returns the candles</small>"]
             candleRepo["<b>CandleRedisRepository</b><br/><small>ZADD, ZREMRANGEBYRANK, ZRANGE</small>"]
         end
@@ -178,12 +215,32 @@ flowchart TB
         end
         subgraph bufferIface[" "]
             direction LR
-            bufferApi{{"<i>«interface»</i><br/><b>CandleBuffer</b><br/><small>streamCandles(): stream of Candles<br/>getLastCandles(symbol, n)<br/>streamStockStat(): stream of StockStats<br/>getStockStat(symbol): StockStat</small>"}}
+            bufferApi{{"<i>«interface»</i><br/><b>CandleBuffer</b><br/><small>streamCandles(): stream of Candles<br/>getLastCandles(symbol, n)</small>"}}
             candleRecord["<i>«record»</i><br/><b>Candle</b><br/><small>symbol, openTime, open, high, low, close, volume<br/>static from(symbol, Bar): Candle</small>"]
         end
     end
 
-    subgraph feed["<b>clientfeed</b>"]
+    subgraph metrics["<b>marketmetrics</b>"]
+        direction TB
+        subgraph metricsCalc[" "]
+            direction LR
+            statCalc["<b>StockStatCalculator</b><br/><small>reads the last 60 candles<br/>computes price, change, change %, volume<br/>returns StockStat</small>"]
+            priceCalc["<b>PricePointCalculator</b><br/><small>reads the last 60 candles<br/>extracts one close price per candle<br/>returns list of PricePoints</small>"]
+        end
+        subgraph metricsStream[" "]
+            direction LR
+            liveStatStream["<b>LiveStockStatStream</b><br/><small>consumes streamCandles()<br/>calls StockStatCalculator per candle<br/>emits stream of StockStats</small>"]
+            priceStream["<b>PricePointStream</b><br/><small>consumes streamCandles()<br/>calls PricePointCalculator per candle<br/>emits stream of PricePoints</small>"]
+        end
+        subgraph metricsIface[" "]
+            direction LR
+            metricsApi{{"<i>«interface»</i><br/><b>MarketMetrics</b><br/><small>streamStockStats(): stream of StockStats<br/>getStockStats(symbol): StockStat<br/>streamPricePoints(): stream of PricePoints<br/>getPricePoints(symbol): list of PricePoints</small>"}}
+            statRecord["<i>«record»</i><br/><b>StockStat</b><br/><small>symbol, price, change, changePct, volume</small>"]
+            priceRecord["<i>«record»</i><br/><b>PricePoint</b><br/><small>symbol, openTime, price</small>"]
+        end
+    end
+
+    subgraph feed["<b>marketfeed</b>"]
         direction LR
         rest["<b>REST controllers</b><br/><small>serve snapshots under /api/*</small>"]
         subgraph feedLive[" "]
@@ -197,63 +254,116 @@ flowchart TB
     redisCandles[("<b>Redis</b><br/><small>candles:{symbol}</small>")]
     browser["<b>Browser</b>"]
 
-    %% Edge order is tuned for the layout: reordering adds crossings. In
-    %% particular the skip-level CandleRedisRepository edges below
-    %% (save candle / read last n / read last 60) must stay right after
-    %% detector's edge, so dagre routes them between CandleGapDetector and
-    %% CandleBackfiller instead of looping around the outside of the
-    %% candlebuffer box. The "Candle" edge right after the backfill call is
-    %% likewise what keeps StockStatCalculator centred between
-    %% CandleGapDetector and CandleBackfiller, below CandleHistory: adding
-    %% its arrows in any other order sends it to the far right of that row
-    %% (or, with a plain statCalc --> bufferApi arrow, flips the layout).
-    %% "bufferApi <--> X" with marker-end:none draws X -> bufferApi but keeps the interface above X.
+    %% Edge order matters for dagre layout: reordering adds crossings.
+    %% 0
     candleRecord ~~~ candleRepo
+    %% 1
     barsClient <-->|"save raw bars<br/>cached raw bars"| barRepo
+    %% 2
     detector -.->|"calls<br/>read stored candles"| candleRepo
+    %% 3
     candleHub -.->|"calls<br/>save candle"| candleRepo
+    %% 4
     history -.->|"calls<br/>read last n"| candleRepo
-    statCalc -.->|"calls<br/>read last 60"| candleRepo
+    %% 5
     bufferApi <-->|"stream of Candles"| candleHub
+    %% 6
     candleHub -.-> backfiller
-    candleHub -->|"Candle"| statCalc
+    %% 7
     barsClient -->|"bars response"| ingestionApi
+    %% 8
     alpaca -->|"REST /v2/stocks/bars"| barsClient
+    %% 9
     alpaca -->|"WS bars"| streamClient
+    %% 10
     pg --> stockRepo
-    bufferApi -->|"streamCandles()"| broadcaster
+    %% 11
     alpaca -->|"REST /v2/clock"| clock
+    %% 12
     rest <-->|"REST /api/*"| browser
+    %% 13
     candleHub -.->|"calls<br/>gap before this candle?"| detector
+    %% 14
     ingestionApi -->|"getMarketStatus()<br/>getTrackedStocks()"| rest
+    %% 15
     ingestionApi -->|"getTrackedStocks()<br/>getMarketStatus()"| detector
+    %% 16
     candleRepo -.->|"calls<br/>save: ZADD + trim to 60<br/>read: ZRANGE"| redisCandles
+    %% 17
     clock -->|"clock response"| ingestionApi
+    %% 18
     stockRepo -->|"subscribe / unsubscribe"| streamClient
+    %% 19
     barsRequest -.- barsClient
+    %% 20
     ingestionApi ----->|"getBars(request)"| backfiller
+    %% 21
     bufferApi <-->|"last n candles"| history
+    %% 22
     backfiller -.->|"calls<br/>save candles"| candleRepo
+    %% 23
     ingestionApi -->|"streamBars()"| candleHub
+    %% 24
     barHub -->|"stream of Bars"| ingestionApi
-    broadcaster -->|"/topic/candles/{symbol}"| wsConfig
-    wsConfig -->|"STOMP /ws"| browser
+    %% 25
     streamClient -->|"Bar"| barHub
+    %% 26
     barRepo <-->|"save: ZREMRANGEBYSCORE + ZADD + trim<br/>read: ZRANGEBYSCORE"| redisBars
-    bufferApi -->|"getLastCandles(symbol, 60)"| rest
+    %% 27
     history -.->|"calls<br/>gap in last n?"| detector
+    %% 28
     stockRepo <-->|"read symbols<br/>add / remove symbol"| ingestionApi
+    %% 29
     history -.->|"calls<br/>backfill gap<br/>returns candles"| backfiller
-    bufferApi <-->|"stream of StockStats"| statCalc
-    %% linkStyle indices count the edges above in order (0-based): keep them
-    %% in sync when adding/removing/reordering edges. Red = live-bar path,
-    %% plus the Candle that LiveCandleStream hands to StockStatCalculator (8).
-    linkStyle 8,11,13,26,27,28,29,30 stroke:#ef4444,stroke-width:2px
-    linkStyle 6 stroke:#ef4444,stroke-width:2px,marker-end:none
-    linkStyle 24,36 marker-end:none
-    %% Grayed-out test styling (see `muted` class on detector): detector edges
-    %% 2, 16, 18, 33; LiveCandleStream → CandleBackfiller backfill call is 7.
-    linkStyle 2,7,16,18,33 stroke:#525252,stroke-width:1px,color:#8a8a8a
+    %% MarketMetrics ← CandleBuffer
+    %% 30
+    bufferApi -->|"streamCandles()"| liveStatStream
+    %% 31
+    bufferApi -->|"streamCandles()"| priceStream
+    %% 32
+    bufferApi -->|"getLastCandles(symbol, 60)"| statCalc
+    %% 33
+    bufferApi -->|"getLastCandles(symbol, 60)"| priceCalc
+    %% MarketMetrics internal
+    %% 34
+    liveStatStream -.->|"calls"| statCalc
+    %% 35
+    priceStream -.->|"calls"| priceCalc
+    %% 36
+    metricsApi <-->|"stream of StockStats"| liveStatStream
+    %% 37
+    metricsApi <-->|"stream of PricePoints"| priceStream
+    %% 38
+    metricsApi <-->|"getStockStats(symbol)"| statCalc
+    %% 39
+    metricsApi <-->|"getPricePoints(symbol)"| priceCalc
+    %% MarketMetrics → MarketFeed
+    %% 40
+    metricsApi -->|"streamStockStats()"| broadcaster
+    %% 41
+    metricsApi -->|"streamPricePoints()"| broadcaster
+    %% 42
+    metricsApi -->|"getStockStats(symbol)<br/>getPricePoints(symbol)"| rest
+    %% CandleBuffer → MarketFeed
+    %% 43
+    bufferApi -->|"streamCandles()"| broadcaster
+    %% 44
+    bufferApi -->|"getLastCandles(symbol, 60)"| rest
+    %% MarketFeed internal
+    %% 45
+    broadcaster -->|"/topic/candles/{symbol}"| wsConfig
+    %% 46
+    wsConfig -->|"STOMP /ws"| browser
+
+    %% Red = live-bar path: alpaca WS → streamClient → barHub → ingestionApi
+    %% → candleHub → bufferApi → liveStatStream/priceStream → metricsApi
+    %% → broadcaster → wsConfig → browser
+    linkStyle 5,23,24,25,30,31,36,37,40,41,43,45,46 stroke:#ef4444,stroke-width:2px
+    linkStyle 5,21,36,37,38,39 marker-end:none
+    %% Grayed-out (gap detection not built this iteration):
+    %% detector edges 2, 13, 15, 27; LiveCandleStream → CandleBackfiller 6.
+    linkStyle 2,6,13,15,27,29 stroke:#525252,stroke-width:1px,color:#8a8a8a
+
     classDef external   fill:#161616,stroke:#d4d4d4,stroke-width:2px,color:#f5f5f5
     classDef datastore  fill:#3f3f3f,stroke:#d4d4d4,stroke-width:1.5px,color:#f5f5f5
     classDef component  fill:#262626,stroke:#737373,stroke-width:1px,color:#e5e5e5
@@ -262,17 +372,21 @@ flowchart TB
 
     class alpaca,browser external
     class pg,redisBars,redisCandles datastore
-    class stockRepo,streamClient,barHub,barRepo,barsClient,clock,history,statCalc,backfiller,candleHub,candleRecord,candleRepo,rest,broadcaster,wsConfig,barsRequest component
+    class stockRepo,streamClient,barHub,barRepo,barsClient,clock,history,backfiller,candleHub,candleRecord,candleRepo,rest,broadcaster,wsConfig,barsRequest,statCalc,priceCalc,liveStatStream,priceStream,statRecord,priceRecord component
     class detector muted
-    class ingestionApi,bufferApi iface
+    class ingestionApi,bufferApi,metricsApi iface
 
     style ext fill:none,stroke:none
     style ingestion fill:#161616,stroke:#525252,stroke-width:1px,color:#e5e5e5
     style buffer    fill:#161616,stroke:#525252,stroke-width:1px,color:#e5e5e5
+    style metrics   fill:#161616,stroke:#525252,stroke-width:1px,color:#e5e5e5
     style feed      fill:#161616,stroke:#525252,stroke-width:1px,color:#e5e5e5
     style bufferGap fill:none,stroke:none
     style bufferEntry fill:none,stroke:none
     style bufferIface fill:none,stroke:none
+    style metricsCalc fill:none,stroke:none
+    style metricsStream fill:none,stroke:none
+    style metricsIface fill:none,stroke:none
     style feedLive fill:none,stroke:none
 ```
 
@@ -337,7 +451,7 @@ flowchart TB
     connect and read timeouts are `alpaca.connect-timeout` (5 s) and
     `alpaca.read-timeout` (10 s).
   - The caller (`CandleBackfiller`, `MarketStatusTracker`) handles both exceptions;
-    ClientFeed never sees them.
+    MarketFeed never sees them.
 - `MarketStatusTracker` keeps the market status in memory, not in Redis. It calls
   Alpaca `GET /v2/clock` on the trading API (`alpaca.trading-base-url`):
   - **Startup:** while the bean is created, so `getMarketStatus()` has a
