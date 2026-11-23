@@ -2,6 +2,7 @@ import type { Stock } from '../types/stock';
 
 import { getConfiguredDataSource, type DataSource, type MockScenario } from './dataSource';
 import { parseStocks } from './responseValidation';
+import { getJson } from '../lib/http/client';
 
 export type StocksOptions = {
   source?: DataSource;
@@ -26,15 +27,11 @@ export async function getStocks(
     return getMockStocks(options.scenario, options.signal);
   }
 
-  const response = options.signal
-    ? await fetch('/api/stocks', { signal: options.signal })
-    : await fetch('/api/stocks');
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch stocks: ${response.status} ${response.statusText}`);
-  }
-
-  return parseStocks(await response.json());
+  const value = await getJson('/api/stocks', {
+    signal: options.signal,
+    resourceName: 'stocks',
+  });
+  return parseStocks(value);
 }
 
 async function getMockStocks(

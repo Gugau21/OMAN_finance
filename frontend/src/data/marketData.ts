@@ -2,6 +2,7 @@ import type { MarketStatus } from '../types/market';
 
 import { getConfiguredDataSource, type DataSource, type MockScenario } from './dataSource';
 import { parseMarketStatus } from './responseValidation';
+import { getJson } from '../lib/http/client';
 
 export type MarketDataSource = DataSource;
 export type MarketStatusOptions = {
@@ -28,15 +29,11 @@ export async function getMarketStatus(
     return getMockMarketStatus(options.scenario, options.signal);
   }
 
-  const response = options.signal
-    ? await fetch('/api/market/status', { signal: options.signal })
-    : await fetch('/api/market/status');
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch market status: ${response.status} ${response.statusText}`);
-  }
-
-  return parseMarketStatus(await response.json());
+  const value = await getJson('/api/market/status', {
+    signal: options.signal,
+    resourceName: 'market status',
+  });
+  return parseMarketStatus(value);
 }
 
 async function getMockMarketStatus(

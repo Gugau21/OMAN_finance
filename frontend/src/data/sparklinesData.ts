@@ -2,6 +2,7 @@ import type { PricePoint, Sparkline } from '../types/stock';
 
 import { getConfiguredDataSource, type DataSource, type MockScenario } from './dataSource';
 import { parseSparklines } from './responseValidation';
+import { getJson } from '../lib/http/client';
 
 export type SparklinesOptions = {
   source?: DataSource;
@@ -26,15 +27,11 @@ export async function getSparklines(
     return getMockSparklines(options.scenario, options.signal);
   }
 
-  const response = options.signal
-    ? await fetch('/api/stocks/sparkline', { signal: options.signal })
-    : await fetch('/api/stocks/sparkline');
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch sparklines: ${response.status} ${response.statusText}`);
-  }
-
-  return parseSparklines(await response.json());
+  const value = await getJson('/api/stocks/sparkline', {
+    signal: options.signal,
+    resourceName: 'sparklines',
+  });
+  return parseSparklines(value);
 }
 
 async function getMockSparklines(

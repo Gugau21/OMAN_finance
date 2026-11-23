@@ -2,6 +2,8 @@ import type { Candle, StockCandles } from '../types/stock';
 
 import { getConfiguredDataSource, type DataSource, type MockScenario } from './dataSource';
 import { parseStockCandles } from './responseValidation';
+import { getJson } from '../lib/http/client';
+import { HttpError } from '../lib/http/errors';
 
 export type StockCandlesOptions = {
   source?: DataSource;
@@ -36,20 +38,21 @@ export async function getStockCandles(
     return getMockStockCandles(symbol, options.scenario, options.signal);
   }
 
-  const endpoint = `/api/stocks/${encodeURIComponent(symbol)}/candles`;
-  const response = options.signal
-    ? await fetch(endpoint, { signal: options.signal })
-    : await fetch(endpoint);
-
-  if (response.status === 404) {
-    return null;
+  try {
+    const value = await getJson(
+      `/api/stocks/${encodeURIComponent(symbol)}/candles`,
+      {
+        signal: options.signal,
+        resourceName: 'stock candles',
+      },
+    );
+    return parseStockCandles(value);
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 404) {
+      return null;
+    }
+    throw error;
   }
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch stock candles: ${response.status} ${response.statusText}`);
-  }
-
-  return parseStockCandles(await response.json());
 }
 
 async function getMockStockCandles(

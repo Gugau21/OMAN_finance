@@ -2,6 +2,8 @@ import type { StockStat } from '../types/stock';
 
 import { getConfiguredDataSource, type DataSource, type MockScenario } from './dataSource';
 import { parseStockStat } from './responseValidation';
+import { getJson } from '../lib/http/client';
+import { HttpError } from '../lib/http/errors';
 
 export type StockStatOptions = {
   source?: DataSource;
@@ -28,20 +30,18 @@ export async function getStockStat(
     return getMockStockStat(symbol, options.scenario, options.signal);
   }
 
-  const endpoint = `/api/stocks/${encodeURIComponent(symbol)}/stat`;
-  const response = options.signal
-    ? await fetch(endpoint, { signal: options.signal })
-    : await fetch(endpoint);
-
-  if (response.status === 404) {
-    return null;
+  try {
+    const value = await getJson(`/api/stocks/${encodeURIComponent(symbol)}/stat`, {
+      signal: options.signal,
+      resourceName: 'stock stat',
+    });
+    return parseStockStat(value);
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 404) {
+      return null;
+    }
+    throw error;
   }
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch stock stat: ${response.status} ${response.statusText}`);
-  }
-
-  return parseStockStat(await response.json());
 }
 
 async function getMockStockStat(
