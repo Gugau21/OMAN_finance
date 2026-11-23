@@ -12,11 +12,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-
-type StockDetailsPageProps = {
-  symbol: string;
-  onBack: () => void;
-};
+import { useNavigate, useParams } from 'react-router-dom';
 
 type CandlestickShapeProps = {
   x?: number;
@@ -80,7 +76,9 @@ const CandlestickShape = (props: CandlestickShapeProps) => {
   );
 };
 
-export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
+export function StockDetailsPage() {
+  const navigate = useNavigate();
+  const { symbol } = useParams<{ symbol: string }>();
   const [stockDetails, setStockDetails] = useState<StockPageView | null>(null);
 
   const [lineChartData, setLineChartData] = useState<Array<{ timestamp: string; price: number }>>(
@@ -93,6 +91,11 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!symbol) {
+      return;
+    }
+
+    const routeSymbol = symbol;
     const controller = new AbortController();
 
     async function loadStockDetails() {
@@ -100,7 +103,7 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
         setIsLoading(true);
         setError(null);
 
-        const data = await getStockPageData(symbol, controller.signal);
+        const data = await getStockPageData(routeSymbol, controller.signal);
 
         if (data) {
           setStockDetails(data);
@@ -163,7 +166,7 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
     return (
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 bg-white min-h-screen">
         <button
-          onClick={onBack}
+          onClick={() => navigate('/')}
           className="text-[10px] text-purple-700 hover:underline mb-4 font-inter"
         >
           &larr; Back to Markets
@@ -183,7 +186,7 @@ export function StockDetailsPage({ symbol, onBack }: StockDetailsPageProps) {
     <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 flex flex-col gap-3 bg-white min-h-screen font-inter">
       <div>
         <button
-          onClick={onBack}
+          onClick={() => navigate('/')}
           className="text-[10px] font-medium text-gray-500 hover:text-purple-700 transition-colors"
         >
           &larr; Back to Markets

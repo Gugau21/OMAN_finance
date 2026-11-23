@@ -1,4 +1,5 @@
 import appIcon from '../assets/AppIcon.png';
+import { NavLink } from 'react-router-dom';
 
 export function Header() {
   return (
@@ -10,9 +11,12 @@ export function Header() {
       </div>
 
       <div className="flex flex-row items-center gap-2">
-        <button className="text-xs text-violet-600 hover:underline cursor-pointer font-inter font-semibold">
+        <NavLink
+          to="/"
+          className="text-xs text-violet-600 hover:underline cursor-pointer font-inter font-semibold"
+        >
           Markets
-        </button>
+        </NavLink>
       </div>
     </header>
   );

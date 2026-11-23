@@ -4,12 +4,10 @@ import { getMainPageStocks } from '../data/mainPageData';
 import type { MarketStatus } from '../types/market';
 import type { MainPageStock } from '../types/stock';
 import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 
-type MainPageProps = {
-  onStockSelect: (symbol: string) => void;
-};
-
-export function MainPage({ onStockSelect }: MainPageProps) {
+export function MainPage() {
+  const navigate = useNavigate();
   // 2. Use the proper MarketStatus type here again
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [marketDate, setMarketDate] = useState<string>('');
@@ -207,7 +205,7 @@ export function MainPage({ onStockSelect }: MainPageProps) {
                       <td className="py-4 px-4">
                         <div className="flex flex-col items-start gap-1">
                           <button
-                            onClick={() => onStockSelect(row.symbol)}
+                            onClick={() => navigate(`/stocks/${encodeURIComponent(row.symbol)}`)}
                             className="text-purple-700 font-bold text-sm hover:text-purple-900 hover:underline focus:outline-none transition-colors"
                           >
                             {row.symbol}
