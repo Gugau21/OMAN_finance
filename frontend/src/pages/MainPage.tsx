@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
-import { getMarketStatus } from '../data/marketData';
 import { getMainPageStocks } from '../data/mainPageData';
-import type { MarketStatus } from '../types/market';
 import type { MainPageStock } from '../types/stock';
 import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { useMarketStatus } from '../features/market/hooks/useMarketStatus';
 
 export function MainPage() {
   const navigate = useNavigate();
-  // 2. Use the proper MarketStatus type here again
-  const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
-  const [marketDate, setMarketDate] = useState<string>('');
+  const marketStatusQuery = useMarketStatus();
   const [stocksData, setStocksData] = useState<MainPageStock[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,26 +21,10 @@ export function MainPage() {
         setError(null);
 
         // 3. Add 'as const' to strictly type the Promise array
-        const [status, combinedStocks] = await Promise.all([
-          getMarketStatus({ signal: controller.signal }),
-          getMainPageStocks(controller.signal),
-        ] as const);
+        const combinedStocks = await getMainPageStocks(controller.signal);
 
         if (controller.signal.aborted) {
           return;
-        }
-
-        if (status) {
-          setMarketStatus(status);
-          const dateObj = new Date(status.timestamp);
-          setMarketDate(
-            dateObj.toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric',
-            }),
-          );
         }
 
         if (combinedStocks) {
@@ -74,6 +55,15 @@ export function MainPage() {
     return () => controller.abort();
   }, []);
 
+  const marketDate = marketStatusQuery.data
+    ? marketStatusQuery.data.timestamp.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : '';
+
   const formatVolume = (vol: number) => {
     if (vol >= 1e6) return (vol / 1e6).toFixed(1) + 'M';
     if (vol >= 1e3) return (vol / 1e3).toFixed(1) + 'K';
@@ -89,23 +79,23 @@ export function MainPage() {
           <div className="flex flex-row items-center gap-1.5">
             <div
               className={`w-1.5 h-1.5 rounded-full ${
-                isLoading
+                marketStatusQuery.isPending
                   ? 'bg-gray-300 animate-pulse'
-                  : marketStatus?.isOpen
+                  : marketStatusQuery.data?.isOpen
                     ? 'bg-green-500'
                     : 'bg-slate-500'
               }`}
             ></div>
             <span className="text-xs font-bold text-gray-800 font-inter">
-              {isLoading
+              {marketStatusQuery.isPending
                 ? 'Loading status...'
-                : marketStatus?.isOpen
+                : marketStatusQuery.data?.isOpen
                   ? 'US markets open'
                   : 'US markets closed'}
             </span>
           </div>
           <span className="text-xs text-gray-500 font-inter mt-0.5">
-            {isLoading ? (
+            {marketStatusQuery.isPending ? (
               <span className="inline-block w-24 h-3 bg-gray-200 rounded animate-pulse mt-1"></span>
             ) : (
               marketDate || 'Date unavailable'

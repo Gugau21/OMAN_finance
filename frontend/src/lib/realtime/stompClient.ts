@@ -5,6 +5,7 @@ import {
 } from '@stomp/stompjs';
 
 export type StompMessageHandler = (message: IMessage) => void;
+export type StompConnectionHandler = (reconnected: boolean) => void;
 
 type SubscriptionEntry = {
   destination: string;
@@ -20,6 +21,8 @@ function createWebSocket(): WebSocket {
 export class StompConnection {
   private readonly client: Client;
   private readonly entries = new Set<SubscriptionEntry>();
+  private readonly connectionHandlers = new Set<StompConnectionHandler>();
+  private hasConnected = false;
 
   constructor() {
     this.client = new Client({
@@ -27,7 +30,15 @@ export class StompConnection {
       heartbeatIncoming: 10_000,
       heartbeatOutgoing: 10_000,
       reconnectDelay: 10_000,
-      onConnect: () => this.subscribeAll(),
+      onConnect: () => {
+        this.subscribeAll();
+        const reconnected = this.hasConnected;
+        this.hasConnected = true;
+
+        for (const handler of this.connectionHandlers) {
+          handler(reconnected);
+        }
+      },
     });
   }
 
@@ -48,6 +59,14 @@ export class StompConnection {
       if (this.entries.size === 0) {
         void this.client.deactivate();
       }
+    };
+  }
+
+  onConnected(handler: StompConnectionHandler): () => void {
+    this.connectionHandlers.add(handler);
+
+    return () => {
+      this.connectionHandlers.delete(handler);
     };
   }
 

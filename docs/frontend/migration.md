@@ -26,6 +26,21 @@ Preserve the existing market behavior during every migration step.
 The mock/real data switch belongs behind the API adapter. It must not be
 imported by pages or visual components.
 
+Market status is now organized as:
+
+```text
+src/features/market/
+  api/marketApi.ts
+  model/market.ts
+  hooks/useMarketStatus.ts
+  mappers/marketMapper.ts
+  tests/marketApi.test.ts
+```
+
+The market model uses `Date` values after transport validation. Other feature
+models should make the same conversion when a domain operation needs reliable
+date arithmetic; raw API DTOs should remain boundary data.
+
 ## Migration plan
 
 1. Add React Router and the application shell.

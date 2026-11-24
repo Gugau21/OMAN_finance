@@ -1,26 +1,5 @@
-import type { MarketStatus } from '../types/market';
 import type { Candle, PricePoint, Sparkline, Stock, StockCandles, StockStat } from '../types/stock';
-
-const rfc3339DateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
-
-export function parseMarketStatus(value: unknown): MarketStatus {
-  if (
-    !isRecord(value) ||
-    !isDateTime(value.timestamp) ||
-    typeof value.isOpen !== 'boolean' ||
-    !isDateTime(value.nextOpen) ||
-    !isDateTime(value.nextClose)
-  ) {
-    throw new Error('Market status response has an invalid shape');
-  }
-
-  return {
-    timestamp: value.timestamp,
-    isOpen: value.isOpen,
-    nextOpen: value.nextOpen,
-    nextClose: value.nextClose,
-  };
-}
+import { isRecord, isRfc3339DateTime } from '../lib/validation/guards';
 
 export function parseStocks(value: unknown): Stock[] {
   if (!Array.isArray(value) || !value.every(isStock)) {
@@ -90,7 +69,7 @@ function isStockStat(value: unknown): value is StockStat {
   return (
     isRecord(value) &&
     isNonEmptyString(value.symbol) &&
-    isDateTime(value.timestamp) &&
+    isRfc3339DateTime(value.timestamp) &&
     isFiniteNumber(value.price) &&
     isFiniteNumber(value.change) &&
     isFiniteNumber(value.changePercent) &&
@@ -99,13 +78,13 @@ function isStockStat(value: unknown): value is StockStat {
 }
 
 function isPricePoint(value: unknown): value is PricePoint {
-  return isRecord(value) && isDateTime(value.timestamp) && isFiniteNumber(value.price);
+  return   isRecord(value) && isRfc3339DateTime(value.timestamp) && isFiniteNumber(value.price);
 }
 
 function isCandle(value: unknown): value is Candle {
   return (
     isRecord(value) &&
-    isDateTime(value.timestamp) &&
+    isRfc3339DateTime(value.timestamp) &&
     isFiniteNumber(value.open) &&
     isFiniteNumber(value.high) &&
     isFiniteNumber(value.low) &&
@@ -122,16 +101,7 @@ function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function isDateTime(value: unknown): value is string {
-  return (
-    typeof value === 'string' && rfc3339DateTime.test(value) && !Number.isNaN(Date.parse(value))
-  );
-}

@@ -1,8 +1,8 @@
-import type { MarketStatus } from '../types/market';
+import type { MarketStatus } from '../model/market';
 
-import { getConfiguredDataSource, type DataSource, type MockScenario } from './dataSource';
-import { parseMarketStatus } from './responseValidation';
-import { getJson } from '../lib/http/client';
+import { getConfiguredDataSource, type DataSource, type MockScenario } from '../../../data/dataSource';
+import { parseMarketStatus } from '../mappers/marketMapper';
+import { getJson } from '../../../lib/http/client';
 
 export type MarketDataSource = DataSource;
 export type MarketStatusOptions = {
@@ -12,10 +12,10 @@ export type MarketStatusOptions = {
 };
 
 const mockMarketStatus: MarketStatus = {
-  timestamp: '2026-10-29T13:08:00-04:00',
+  timestamp: new Date('2026-10-29T13:08:00-04:00'),
   isOpen: true,
-  nextOpen: '2026-10-30T09:30:00-04:00',
-  nextClose: '2026-10-29T16:00:00-04:00',
+  nextOpen: new Date('2026-10-30T09:30:00-04:00'),
+  nextClose: new Date('2026-10-29T16:00:00-04:00'),
 };
 
 export async function getMarketStatus(

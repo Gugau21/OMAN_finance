@@ -202,6 +202,11 @@ src/features/market/
 - Validate and cache market status.
 - Display open/closed status and relevant dates.
 
+The market feature model uses `Date` for timestamps. REST and STOMP payloads
+remain RFC 3339 strings at the transport boundary; `marketMapper` validates
+those strings and converts them to `Date` before the data enters the Query
+Cache. This keeps timestamp comparisons and date formatting consistent.
+
 **Future extension**
 
 Trading windows or account features can consume the shared market-status model
@@ -533,6 +538,7 @@ frontend/src/
   lib/
     http/
     realtime/
+    validation/
     format/
     telemetry/
 ```
