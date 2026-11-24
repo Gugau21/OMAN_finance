@@ -1,7 +1,6 @@
 import { createStockPageView } from '../mappers/stockPageMapper';
-import type { StockPageView } from '../types/stock';
-import { getStockCandles } from './stockCandlesData';
-import { getStockStat } from './stockStatData';
+import type { StockPageView } from '../features/stocks/model/stock';
+import { getStockCandles, getStockStat } from '../features/stocks/api/stocksApi';
 
 export async function getStockPageData(
   symbol: string,

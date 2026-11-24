@@ -1,10 +1,11 @@
-import type { MainPageStock, Sparkline, Stock, StockStat } from '../types/stock';
+import type { Sparkline, Stock, StockStat } from '../model/stock';
+import type { StockListItem } from '../model/stock';
 
-export function createMainPageStocks(
+export function createStockList(
   stocks: Stock[],
   stats: StockStat[],
   sparklines: Sparkline[],
-): MainPageStock[] {
+): StockListItem[] {
   const statsBySymbol = new Map(stats.map((stat) => [stat.symbol, stat]));
   const sparklinesBySymbol = new Map(sparklines.map((sparkline) => [sparkline.symbol, sparkline]));
 

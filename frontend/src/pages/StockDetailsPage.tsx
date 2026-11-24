@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getStockPageData } from '../data/stockPageData';
-import type { StockPageView } from '../types/stock';
+import type { StockPageView } from '../features/stocks/model/stock';
 import {
   LineChart,
   Line,
@@ -109,7 +109,7 @@ export function StockDetailsPage() {
           setStockDetails(data);
 
           const lineData = data.sparkline.map((pt) => ({
-            timestamp: new Date(pt.timestamp).toLocaleTimeString([], {
+            timestamp: pt.timestamp.toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
             }),
@@ -120,7 +120,7 @@ export function StockDetailsPage() {
           const candleData = data.candles.candles.map((pt) => {
             const isGrowing = pt.close >= pt.open;
             return {
-              timestamp: new Date(pt.timestamp).toLocaleTimeString([], {
+              timestamp: pt.timestamp.toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
               }),

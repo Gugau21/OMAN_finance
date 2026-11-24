@@ -1,59 +1,18 @@
-import { useEffect, useState } from 'react';
-import { getMainPageStocks } from '../data/mainPageData';
-import type { MainPageStock } from '../types/stock';
 import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useMarketStatus } from '../features/market/hooks/useMarketStatus';
+import { useStockList } from '../features/stocks/hooks/useStockList';
 
 export function MainPage() {
   const navigate = useNavigate();
   const marketStatusQuery = useMarketStatus();
-  const [stocksData, setStocksData] = useState<MainPageStock[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadDashboardData() {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // 3. Add 'as const' to strictly type the Promise array
-        const combinedStocks = await getMainPageStocks(controller.signal);
-
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        if (combinedStocks) {
-          setStocksData(combinedStocks);
-        } else {
-          setStocksData([]);
-        }
-      } catch (err: unknown) {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        if (err instanceof Error && err.name !== 'AbortError') {
-          console.error('Failed to fetch dashboard data:', err.message);
-          setError('We encountered an issue loading the market data. Please try again later.');
-        } else if (!(err instanceof Error)) {
-          console.error('Failed to fetch dashboard data:', err);
-          setError('An unexpected error occurred.');
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadDashboardData();
-    return () => controller.abort();
-  }, []);
+  const stockListQuery = useStockList();
+  const stocksData = stockListQuery.data ?? [];
+  const isLoading = stockListQuery.isPending;
+  const error =
+    stockListQuery.error instanceof Error
+      ? 'We encountered an issue loading the market data. Please try again later.'
+      : null;
 
   const marketDate = marketStatusQuery.data
     ? marketStatusQuery.data.timestamp.toLocaleDateString('en-US', {
@@ -157,6 +116,13 @@ export function MainPage() {
                     <div className="flex flex-col items-center justify-center text-center bg-red-50 rounded-lg p-8 border border-red-100 max-w-lg mx-auto">
                       <span className="text-red-600 font-bold text-sm mb-2">Data Fetch Failed</span>
                       <span className="text-red-500 text-xs">{error}</span>
+                      <button
+                        type="button"
+                        onClick={() => void stockListQuery.refetch()}
+                        className="mt-4 rounded-md bg-violet-700 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-800"
+                      >
+                        Retry
+                      </button>
                     </div>
                   </td>
                 </tr>

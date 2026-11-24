@@ -1,18 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { getStockPageData } from './stockPageData';
-import { getStockCandles } from './stockCandlesData';
-import { getStockStat } from './stockStatData';
+import { getStockCandles, getStockStat } from '../features/stocks/api/stocksApi';
 
-vi.mock('./stockCandlesData');
-vi.mock('./stockStatData');
+vi.mock('../features/stocks/api/stocksApi');
 
 describe('getStockPageData', () => {
   it('fetches and combines stock stat and candles', async () => {
     const signal = new AbortController().signal;
     const stat = {
       symbol: 'AAPL',
-      timestamp: '2026-10-29T17:07:00Z',
+      timestamp: new Date('2026-10-29T17:07:00Z'),
       price: 231.42,
       change: 1.87,
       changePercent: 0.81,
@@ -22,7 +20,7 @@ describe('getStockPageData', () => {
       symbol: 'AAPL',
       candles: [
         {
-          timestamp: '2026-10-29T17:07:00Z',
+          timestamp: new Date('2026-10-29T17:07:00Z'),
           open: 231.1,
           high: 231.55,
           low: 231.02,
@@ -40,7 +38,7 @@ describe('getStockPageData', () => {
       stat,
       sparkline: [
         {
-          timestamp: '2026-10-29T17:07:00Z',
+          timestamp: new Date('2026-10-29T17:07:00Z'),
           price: 231.42,
           volume: 31250,
         },
@@ -64,7 +62,7 @@ describe('getStockPageData', () => {
   it('returns null when candles are unavailable', async () => {
     vi.mocked(getStockStat).mockResolvedValue({
       symbol: 'AAPL',
-      timestamp: '2026-10-29T17:07:00Z',
+      timestamp: new Date('2026-10-29T17:07:00Z'),
       price: 231.42,
       change: 1.87,
       changePercent: 0.81,

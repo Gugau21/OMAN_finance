@@ -41,6 +41,20 @@ The market model uses `Date` values after transport validation. Other feature
 models should make the same conversion when a domain operation needs reliable
 date arithmetic; raw API DTOs should remain boundary data.
 
+The stock list is now organized as:
+
+```text
+src/features/stocks/
+  api/stocksApi.ts
+  model/stock.ts
+  hooks/useStockList.ts
+  mappers/stockListMapper.ts
+  tests/stockListMapper.test.ts
+```
+
+`StocksPage` reads `useStockList()` and no longer owns an effect, an abort
+controller, loading state, or stock-list fetching state.
+
 ## Migration plan
 
 1. Add React Router and the application shell.

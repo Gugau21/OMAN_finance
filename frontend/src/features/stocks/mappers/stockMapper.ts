@@ -1,5 +1,16 @@
-import type { Candle, PricePoint, Sparkline, Stock, StockCandles, StockStat } from '../types/stock';
-import { isRecord, isRfc3339DateTime } from '../lib/validation/guards';
+import type { Sparkline, Stock, StockCandles, StockStat } from '../model/stock';
+import {
+  isChartCandle,
+  isChartPricePoint,
+  parseChartCandles,
+  parseChartPricePoints,
+} from '../../../components/charts/mappers/chartPayloadMapper';
+import {
+  isFiniteNumber,
+  isNonNegativeInteger,
+  isRecord,
+  isRfc3339DateTime,
+} from '../../../lib/validation/guards';
 
 export function parseStocks(value: unknown): Stock[] {
   if (!Array.isArray(value) || !value.every(isStock)) {
@@ -14,7 +25,14 @@ export function parseSparklines(value: unknown): Sparkline[] {
     throw new Error('Sparklines response has an invalid shape');
   }
 
-  return value;
+  return value.map((sparkline) => ({
+    symbol: sparkline.symbol,
+    points: parseChartPricePoints(sparkline.points).map((point) => ({
+      timestamp: point.timestamp,
+      price: point.price,
+      ...(point.volume === undefined ? {} : { volume: point.volume }),
+    })),
+  }));
 }
 
 export function parseStockStats(value: unknown): StockStat[] {
@@ -22,7 +40,10 @@ export function parseStockStats(value: unknown): StockStat[] {
     throw new Error('Stock stats response has an invalid shape');
   }
 
-  return value;
+  return value.map((stat) => ({
+    ...stat,
+    timestamp: new Date(stat.timestamp),
+  }));
 }
 
 export function parseStockStat(value: unknown): StockStat {
@@ -30,7 +51,10 @@ export function parseStockStat(value: unknown): StockStat {
     throw new Error('Stock stat response has an invalid shape');
   }
 
-  return value;
+  return {
+    ...value,
+    timestamp: new Date(value.timestamp),
+  };
 }
 
 export function parseStockCandles(value: unknown): StockCandles {
@@ -38,10 +62,39 @@ export function parseStockCandles(value: unknown): StockCandles {
     throw new Error('Stock candles response has an invalid shape');
   }
 
-  return value;
+  return {
+    symbol: value.symbol,
+    candles: parseChartCandles(value.candles).map((candle) => ({
+      timestamp: candle.timestamp,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+    })),
+  };
 }
 
-function isStockCandles(value: unknown): value is StockCandles {
+type StockStatPayload = {
+  symbol: string;
+  timestamp: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+};
+
+type StockCandlesPayload = {
+  symbol: string;
+  candles: unknown[];
+};
+
+type SparklinePayload = {
+  symbol: string;
+  points: unknown[];
+};
+
+function isStockCandles(value: unknown): value is StockCandlesPayload {
   return (
     isRecord(value) &&
     isNonEmptyString(value.symbol) &&
@@ -55,7 +108,7 @@ function isStock(value: unknown): value is Stock {
   return isRecord(value) && isNonEmptyString(value.symbol) && isNonEmptyString(value.name);
 }
 
-function isSparkline(value: unknown): value is Sparkline {
+function isSparkline(value: unknown): value is SparklinePayload {
   return (
     isRecord(value) &&
     isNonEmptyString(value.symbol) &&
@@ -65,7 +118,7 @@ function isSparkline(value: unknown): value is Sparkline {
   );
 }
 
-function isStockStat(value: unknown): value is StockStat {
+function isStockStat(value: unknown): value is StockStatPayload {
   return (
     isRecord(value) &&
     isNonEmptyString(value.symbol) &&
@@ -77,31 +130,15 @@ function isStockStat(value: unknown): value is StockStat {
   );
 }
 
-function isPricePoint(value: unknown): value is PricePoint {
-  return   isRecord(value) && isRfc3339DateTime(value.timestamp) && isFiniteNumber(value.price);
+function isPricePoint(value: unknown): boolean {
+  return isChartPricePoint(value);
 }
 
-function isCandle(value: unknown): value is Candle {
-  return (
-    isRecord(value) &&
-    isRfc3339DateTime(value.timestamp) &&
-    isFiniteNumber(value.open) &&
-    isFiniteNumber(value.high) &&
-    isFiniteNumber(value.low) &&
-    isFiniteNumber(value.close) &&
-    isNonNegativeInteger(value.volume)
-  );
+function isCandle(value: unknown): boolean {
+  return isChartCandle(value);
 }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
-}
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
-

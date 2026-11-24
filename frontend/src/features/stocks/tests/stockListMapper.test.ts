@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { createMainPageStocks } from './mainPageStockMapper';
+import { createStockList } from '../mappers/stockListMapper';
 
-describe('createMainPageStocks', () => {
+describe('createStockList', () => {
   it('combines stock, stat, and sparkline data by symbol', () => {
-    const pricePoints = [{ timestamp: '2026-10-29T17:07:00Z', price: 231.42 }];
+    const pricePoints = [{ timestamp: new Date('2026-10-29T17:07:00Z'), price: 231.42 }];
 
     expect(
-      createMainPageStocks(
+      createStockList(
         [{ symbol: 'AAPL', name: 'Apple Inc.' }],
         [
           {
             symbol: 'AAPL',
-            timestamp: '2026-10-29T17:07:00Z',
+            timestamp: new Date('2026-10-29T17:07:00Z'),
             price: 231.42,
             change: 1.87,
             changePercent: 0.81,
@@ -25,7 +25,7 @@ describe('createMainPageStocks', () => {
       {
         symbol: 'AAPL',
         name: 'Apple Inc.',
-        timestamp: '2026-10-29T17:07:00Z',
+        timestamp: new Date('2026-10-29T17:07:00Z'),
         price: 231.42,
         change: 1.87,
         changePercent: 0.81,
@@ -37,7 +37,7 @@ describe('createMainPageStocks', () => {
 
   it('excludes stocks without matching stats or sparklines', () => {
     expect(
-      createMainPageStocks(
+      createStockList(
         [
           { symbol: 'AAPL', name: 'Apple Inc.' },
           { symbol: 'MSFT', name: 'Microsoft Corporation' },
@@ -45,7 +45,7 @@ describe('createMainPageStocks', () => {
         [
           {
             symbol: 'AAPL',
-            timestamp: '2026-10-29T17:07:00Z',
+            timestamp: new Date('2026-10-29T17:07:00Z'),
             price: 231.42,
             change: 1.87,
             changePercent: 0.81,
@@ -58,6 +58,6 @@ describe('createMainPageStocks', () => {
   });
 
   it('returns an empty array when there are no stocks', () => {
-    expect(createMainPageStocks([], [], [])).toEqual([]);
+    expect(createStockList([], [], [])).toEqual([]);
   });
 });
