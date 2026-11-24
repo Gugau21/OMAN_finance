@@ -24,5 +24,5 @@ export async function getJson(
     );
   }
 
-  return (await response.json()) as unknown;
+  return await response.json();
 }
