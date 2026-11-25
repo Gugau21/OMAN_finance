@@ -1,26 +1,15 @@
-import type { MarketStatus } from '../model/market';
-
-import { getConfiguredDataSource, type DataSource, type MockScenario } from '../../../data/dataSource';
-import { parseMarketStatus } from '../mappers/marketMapper';
+import {
+  getConfiguredDataSource,
+  type DataSource,
+  type DataOptions,
+} from '../../../data/dataSource';
 import { getJson } from '../../../lib/http/client';
-
-export type MarketDataSource = DataSource;
-export type MarketStatusOptions = {
-  source?: MarketDataSource;
-  scenario?: MockScenario;
-  signal?: AbortSignal;
-};
-
-const mockMarketStatus: MarketStatus = {
-  timestamp: new Date('2026-10-29T13:08:00-04:00'),
-  isOpen: true,
-  nextOpen: new Date('2026-10-30T09:30:00-04:00'),
-  nextClose: new Date('2026-10-29T16:00:00-04:00'),
-};
+import { parseMarketStatusDto, type MarketStatusDto } from './marketStatusDto';
+import { getMockMarketStatus } from '../mocks/marketStatusMock';
 
 export async function getMarketStatus(
-  sourceOrOptions: MarketDataSource | MarketStatusOptions = {},
-): Promise<MarketStatus | null> {
+  sourceOrOptions: DataSource | DataOptions = {},
+): Promise<MarketStatusDto | null> {
   const options =
     typeof sourceOrOptions === 'string' ? { source: sourceOrOptions } : sourceOrOptions;
   const source = options.source ?? getConfiguredDataSource('marketStatus');
@@ -33,49 +22,5 @@ export async function getMarketStatus(
     signal: options.signal,
     resourceName: 'market status',
   });
-  return parseMarketStatus(value);
-}
-
-async function getMockMarketStatus(
-  scenario: MockScenario = getConfiguredScenario(),
-  signal?: AbortSignal,
-): Promise<MarketStatus | null> {
-  if (scenario === 'empty') {
-    return null;
-  }
-
-  if (scenario === 'error') {
-    throw new Error('Market status mock request failed');
-  }
-
-  if (scenario === 'loading') {
-    return waitForever(signal);
-  }
-
-  return mockMarketStatus;
-}
-
-function getConfiguredScenario(): MockScenario {
-  const configuredScenario = import.meta.env.VITE_MARKET_STATUS_SCENARIO;
-
-  return configuredScenario === 'empty' ||
-    configuredScenario === 'error' ||
-    configuredScenario === 'loading'
-    ? configuredScenario
-    : 'success';
-}
-
-function waitForever(signal?: AbortSignal): Promise<never> {
-  return new Promise((_, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException('Market status mock request aborted', 'AbortError'));
-      return;
-    }
-
-    signal?.addEventListener(
-      'abort',
-      () => reject(new DOMException('Market status mock request aborted', 'AbortError')),
-      { once: true },
-    );
-  });
+  return parseMarketStatusDto(value);
 }

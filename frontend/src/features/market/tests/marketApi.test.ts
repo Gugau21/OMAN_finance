@@ -9,10 +9,10 @@ describe('getMarketStatus', () => {
 
   it('returns mock data by default', async () => {
     await expect(getMarketStatus('mock')).resolves.toEqual({
-      timestamp: new Date('2026-10-29T13:08:00-04:00'),
+      timestamp: '2026-10-29T13:08:00-04:00',
       isOpen: true,
-      nextOpen: new Date('2026-10-30T09:30:00-04:00'),
-      nextClose: new Date('2026-10-29T16:00:00-04:00'),
+      nextOpen: '2026-10-30T09:30:00-04:00',
+      nextClose: '2026-10-29T16:00:00-04:00',
     });
   });
 
@@ -39,7 +39,7 @@ describe('getMarketStatus', () => {
     await expect(request).rejects.toThrow('Market status mock request aborted');
   });
 
-  it('returns parsed real data', async () => {
+  it('returns validated real data as a DTO with string timestamps', async () => {
     const response = {
       timestamp: '2026-10-29T13:08:00-04:00',
       isOpen: false,
@@ -52,12 +52,7 @@ describe('getMarketStatus', () => {
       vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 200 })),
     );
 
-    await expect(getMarketStatus('real')).resolves.toEqual({
-      timestamp: new Date(response.timestamp),
-      isOpen: false,
-      nextOpen: new Date(response.nextOpen),
-      nextClose: new Date(response.nextClose),
-    });
+    await expect(getMarketStatus('real')).resolves.toEqual(response);
   });
 
   it('throws when real data cannot be loaded', async () => {

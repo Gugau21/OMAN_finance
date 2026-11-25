@@ -11,7 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.omanfinance.candlebuffer.api.CandleBuffer;
 import com.omanfinance.candlebuffer.api.dto.PricePoint;
-import com.omanfinance.marketfeed.web.dto.ContractPricePoint;
+import com.omanfinance.marketfeed.web.dto.SparklinePointMessage;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,22 +49,28 @@ class SparklinePointPublisherTest {
     InOrder inOrder = inOrder(messaging);
     inOrder
         .verify(messaging)
-        .convertAndSend("/topic/stocks/sparkline", ContractPricePoint.from(AAPL));
+        .convertAndSend(
+            "/topic/stocks/sparkline",
+            new SparklinePointMessage("AAPL", MINUTE, new BigDecimal("231.42")));
     inOrder
         .verify(messaging)
-        .convertAndSend("/topic/stocks/sparkline", ContractPricePoint.from(MSFT));
+        .convertAndSend(
+            "/topic/stocks/sparkline",
+            new SparklinePointMessage("MSFT", MINUTE, new BigDecimal("420.10")));
   }
 
   @Test
   void keepsPublishingAfterAFailedSend() {
     doThrow(new MessageDeliveryException("broker down"))
         .when(messaging)
-        .convertAndSend("/topic/stocks/sparkline", ContractPricePoint.from(AAPL));
+        .convertAndSend(
+            "/topic/stocks/sparkline",
+            new SparklinePointMessage("AAPL", MINUTE, new BigDecimal("231.42")));
 
     points.tryEmitNext(AAPL);
     points.tryEmitNext(MSFT);
 
-    verify(messaging).convertAndSend("/topic/stocks/sparkline", ContractPricePoint.from(MSFT));
+    verify(messaging).convertAndSend("/topic/stocks/sparkline", SparklinePointMessage.from(MSFT));
   }
 
   @Test

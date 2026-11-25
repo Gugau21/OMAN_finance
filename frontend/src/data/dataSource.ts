@@ -4,6 +4,12 @@ export type MockScenario = 'success' | 'empty' | 'error' | 'loading';
 export type DataEndpoint =
   'marketStatus' | 'stocks' | 'sparklines' | 'stockStats' | 'stockStat' | 'stockCandles';
 
+export type DataOptions = {
+  source?: DataSource;
+  scenario?: MockScenario;
+  signal?: AbortSignal;
+};
+
 export function getConfiguredDataSource(endpoint: DataEndpoint): DataSource {
   const endpointOverride = {
     marketStatus: import.meta.env.VITE_MOCK_MARKET_STATUS,

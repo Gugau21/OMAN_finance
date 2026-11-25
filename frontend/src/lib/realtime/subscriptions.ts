@@ -10,14 +10,10 @@ export const stompTopics = {
   stockStats: '/topic/stocks/stat',
   stockSparklines: '/topic/stocks/sparkline',
   stockStat: (symbol: string) => `/topic/stocks/${encodeURIComponent(symbol)}/stat`,
-  stockCandles: (symbol: string) =>
-    `/topic/stocks/${encodeURIComponent(symbol)}/candles`,
+  stockCandles: (symbol: string) => `/topic/stocks/${encodeURIComponent(symbol)}/candles`,
 } as const;
 
-export function subscribeToTopic(
-  destination: string,
-  handler: StompMessageHandler,
-): () => void {
+export function subscribeToTopic(destination: string, handler: StompMessageHandler): () => void {
   return stompConnection.subscribe(destination, handler);
 }
 

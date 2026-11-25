@@ -1,8 +1,4 @@
-import {
-  Client,
-  type IMessage,
-  type StompSubscription,
-} from '@stomp/stompjs';
+import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs';
 
 export type StompMessageHandler = (message: IMessage) => void;
 export type StompConnectionHandler = (reconnected: boolean) => void;

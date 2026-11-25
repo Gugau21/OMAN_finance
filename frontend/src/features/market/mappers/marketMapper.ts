@@ -1,22 +1,11 @@
+import type { MarketStatusDto } from '../api/marketStatusDto';
 import type { MarketStatus } from '../model/market';
-import { isRecord, isRfc3339DateTime } from '../../../lib/validation/guards';
 
-export function parseMarketStatus(value: unknown): MarketStatus {
-  if (
-    !isRecord(value) ||
-    !isRfc3339DateTime(value.timestamp) ||
-    typeof value.isOpen !== 'boolean' ||
-    !isRfc3339DateTime(value.nextOpen) ||
-    !isRfc3339DateTime(value.nextClose)
-  ) {
-    throw new Error('Market status response has an invalid shape');
-  }
-
+export function toMarketStatus(dto: MarketStatusDto): MarketStatus {
   return {
-    timestamp: new Date(value.timestamp),
-    isOpen: value.isOpen,
-    nextOpen: new Date(value.nextOpen),
-    nextClose: new Date(value.nextClose),
+    timestamp: new Date(dto.timestamp),
+    isOpen: dto.isOpen,
+    nextOpen: new Date(dto.nextOpen),
+    nextClose: new Date(dto.nextClose),
   };
 }
-

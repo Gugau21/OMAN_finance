@@ -2,7 +2,7 @@ package com.omanfinance.marketfeed.web;
 
 import com.omanfinance.candlebuffer.api.CandleBuffer;
 import com.omanfinance.candlebuffer.api.dto.PricePoint;
-import com.omanfinance.marketfeed.web.dto.ContractPricePoint;
+import com.omanfinance.marketfeed.web.dto.SparklinePointMessage;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +61,7 @@ class SparklinePointPublisher {
 
   void publish(PricePoint point) {
     try {
-      messaging.convertAndSend(DESTINATION, ContractPricePoint.from(point));
+      messaging.convertAndSend(DESTINATION, SparklinePointMessage.from(point));
     } catch (MessagingException e) {
       log.warn("Could not publish PricePoint of symbol: {}", point.symbol(), e);
     }

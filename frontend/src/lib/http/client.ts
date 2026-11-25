@@ -8,10 +8,7 @@ export type HttpJsonOptions = HttpRequestOptions & {
   resourceName: string;
 };
 
-export async function getJson(
-  path: string,
-  options: HttpJsonOptions,
-): Promise<unknown> {
+export async function getJson(path: string, options: HttpJsonOptions): Promise<unknown> {
   const response = options.signal
     ? await fetch(path, { signal: options.signal })
     : await fetch(path);

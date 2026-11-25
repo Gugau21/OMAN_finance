@@ -55,6 +55,12 @@ src/features/stocks/
 `StocksPage` reads `useStockList()` and no longer owns an effect, an abort
 controller, loading state, or stock-list fetching state.
 
+REST DTOs for market status and stocks are generated from
+`docs/api_contract.yaml` into `frontend/src/types/api.generated.ts` using
+`npm run generate:api-types`. Keep these separate from feature UI models:
+generated DTO timestamps are strings, while mapped UI model timestamps are
+`Date` values.
+
 ## Migration plan
 
 1. Add React Router and the application shell.

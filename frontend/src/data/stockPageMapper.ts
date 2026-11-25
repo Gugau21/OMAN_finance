@@ -1,11 +1,13 @@
-import type {
-  StockCandles,
-  StockPageView,
-  StockStat,
-} from '../features/stocks/model/stock';
 import type { ChartPricePoint } from '../components/charts/model/chartTypes';
+import type { StockPageCandles, StockPageStat } from './stockPageParsers';
 
-export function createStockPageView(candles: StockCandles, stat: StockStat): StockPageView {
+export type StockPageView = {
+  candles: StockPageCandles;
+  stat: StockPageStat;
+  sparkline: ChartPricePoint[];
+};
+
+export function createStockPageView(candles: StockPageCandles, stat: StockPageStat): StockPageView {
   if (candles.symbol !== stat.symbol) {
     throw new Error(`Cannot create stock page view for ${candles.symbol} and ${stat.symbol}`);
   }

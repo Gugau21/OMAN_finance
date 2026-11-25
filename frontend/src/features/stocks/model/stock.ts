@@ -1,42 +1,20 @@
-import type { ChartCandle, ChartPricePoint } from '../../../components/charts/model/chartTypes';
+import type { ChartPricePoint } from '../../../components/charts/model/chartTypes';
 
 export type StockListItem = {
   symbol: string;
   name: string;
-  timestamp: Date;
-  price: number;
-  change: number;
-  changePercent: number;
-  volume: number;
-  pricePoints: ChartPricePoint[];
-};
-
-export type Stock = {
-  symbol: string;
-  name: string;
-};
-
-export type Sparkline = {
-  symbol: string;
-  points: ChartPricePoint[];
+  stat: StockStat;
+  sparkline: Sparkline;
 };
 
 export type StockStat = {
-  symbol: string;
-  timestamp: Date;
   price: number;
   change: number;
   changePercent: number;
   volume: number;
+  timestamp: Date;
 };
 
-export type StockCandles = {
-  symbol: string;
-  candles: ChartCandle[];
-};
-
-export type StockPageView = {
-  candles: StockCandles;
-  stat: StockStat;
-  sparkline: ChartPricePoint[];
+export type Sparkline = {
+  points: ChartPricePoint[];
 };

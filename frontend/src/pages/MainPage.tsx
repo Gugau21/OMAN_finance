@@ -118,7 +118,7 @@ export function MainPage() {
                       <span className="text-red-500 text-xs">{error}</span>
                       <button
                         type="button"
-                        onClick={() => void stockListQuery.refetch()}
+                        onClick={() => void stockListQuery.retry()}
                         className="mt-4 rounded-md bg-violet-700 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-800"
                       >
                         Retry
@@ -149,7 +149,7 @@ export function MainPage() {
             {!isLoading && !error && stocksData.length > 0 && (
               <tbody className="text-sm bg-white">
                 {stocksData.map((row) => {
-                  const isPositive = row.change >= 0;
+                  const isPositive = row.stat.change >= 0;
                   const colorClass = isPositive ? 'text-green-600' : 'text-red-500';
                   const strokeColor = isPositive ? '#16a34a' : '#ef4444';
 
@@ -170,22 +170,22 @@ export function MainPage() {
                         </div>
                       </td>
                       <td className="py-4 px-4 text-right font-medium text-gray-900">
-                        ${row.price.toFixed(2)}
+                        ${row.stat.price.toFixed(2)}
                       </td>
                       <td className={`py-4 px-4 text-right font-medium ${colorClass}`}>
                         {isPositive ? '+' : ''}
-                        {row.change.toFixed(2)}
+                        {row.stat.change.toFixed(2)}
                       </td>
                       <td className={`py-4 px-4 text-right font-semibold ${colorClass}`}>
                         {isPositive ? '+' : ''}
-                        {row.changePercent.toFixed(2)}%
+                        {row.stat.changePercent.toFixed(2)}%
                       </td>
                       <td className="py-4 px-4 text-right text-gray-600">
-                        {formatVolume(row.volume)}
+                        {formatVolume(row.stat.volume)}
                       </td>
                       <td className="py-4 px-4 h-12 w-24">
                         <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={row.pricePoints}>
+                          <LineChart data={row.sparkline.points}>
                             <YAxis domain={['dataMin', 'dataMax']} hide />
                             <Line
                               type="monotone"

@@ -187,9 +187,11 @@ empty, stale, and retry states.
 ```text
 src/features/market/
   api/marketApi.ts
+  api/marketStatusDto.ts
   model/market.ts
   hooks/useMarketStatus.ts
   mappers/marketMapper.ts
+  mocks/marketStatusMock.ts
   components/MarketStatus.tsx
   pages/MarketPage.tsx
   tests/
@@ -224,6 +226,7 @@ src/features/stocks/
   hooks/useStockDetails.ts
   hooks/useStockRealtime.ts
   mappers/stockMapper.ts
+  mocks/stockMocks.ts
   components/StockTable.tsx
   components/StockRow.tsx
   components/StockHeader.tsx
@@ -330,6 +333,48 @@ subscription and cache-update API.
 
 Redux is not needed initially. TanStack Query is the source of truth for server
 state.
+
+## API DTOs and UI models
+
+```text
+docs/api_contract.yaml
+  -> npm run generate:api-types
+  -> src/types/api.generated.ts
+  -> feature/chart mapper validates DTO and maps to UI model
+  -> TanStack Query cache
+  -> hooks and UI
+```
+
+`src/types/api.generated.ts` contains generated REST DTO types and must not be
+edited manually. The REST contract is the source of truth. Run
+`npm run generate:api-types` from `frontend/` after changing the contract.
+Generated DTOs describe the wire format, including RFC 3339 timestamp strings.
+
+Feature and chart models describe frontend needs instead. For example,
+`MarketStatus.timestamp` and stock/chart timestamps are `Date` instances after
+mapping. `StockListItem` is the stock-list UI model, assembled from generated
+`Stock`, `StockStat`, and `Sparkline` DTOs. DTO validation and conversion to UI
+models happen before data is stored in the Query Cache.
+
+Chart components share only chart input models from
+`components/charts/model/chartTypes.ts`. API payload validation and conversion
+to those models stay in the owning feature mapper (for example,
+`features/stocks/mappers/stockMapper.ts`), because different features and
+endpoints may have different wire formats.
+
+```text
+REST JSON
+  -> marketApi: validate as generated MarketStatusDto
+  -> marketMapper: MarketStatusDto -> MarketStatus UI model
+  -> Query Cache
+  -> useMarketStatus
+  -> page/UI
+```
+
+Generated types prevent manually maintained copies of the OpenAPI schemas. UI
+model types remain hand-authored because they represent frontend needs rather
+than the backend wire format. STOMP market-status messages use the same
+runtime DTO validator and mapper as REST responses.
 
 ## Initial REST flow
 

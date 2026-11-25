@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getConfiguredDataSource } from '../../../data/dataSource';
 import { getMarketStatus } from '../api/marketApi';
-import { parseMarketStatus } from '../mappers/marketMapper';
+import { parseMarketStatusDto } from '../api/marketStatusDto';
+import { toMarketStatus } from '../mappers/marketMapper';
 import type { MarketStatus } from '../model/market';
 import {
   parseStompJson,
@@ -18,20 +19,17 @@ export function useMarketStatus() {
   const latestMessageTimestamp = useRef<Date | null>(null);
   const [realtimeError, setRealtimeError] = useState<Error | null>(null);
 
-  const query = useQuery({
+  const query = useQuery<MarketStatus | null>({
     queryKey: marketStatusQueryKey,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     queryFn: async ({ signal }) => {
-      const snapshot = await getMarketStatus({ signal });
+      const snapshotDto = await getMarketStatus({ signal });
+      const snapshot = snapshotDto ? toMarketStatus(snapshotDto) : null;
       const latestTimestamp = latestMessageTimestamp.current;
 
-      if (
-        snapshot &&
-        latestTimestamp &&
-        snapshot.timestamp.getTime() < latestTimestamp.getTime()
-      ) {
+      if (snapshot && latestTimestamp && snapshot.timestamp.getTime() < latestTimestamp.getTime()) {
         return queryClient.getQueryData<MarketStatus | null>(marketStatusQueryKey) ?? snapshot;
       }
 
@@ -46,7 +44,8 @@ export function useMarketStatus() {
 
     const unsubscribe = subscribeToTopic(stompTopics.marketStatus, (message) => {
       try {
-        const update = parseMarketStatus(parseStompJson(message));
+        const updateDto = parseMarketStatusDto(parseStompJson(message));
+        const update = toMarketStatus(updateDto);
         latestMessageTimestamp.current = update.timestamp;
         setRealtimeError(null);
         queryClient.setQueryData<MarketStatus | null>(marketStatusQueryKey, (current) => {
