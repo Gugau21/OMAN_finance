@@ -1,6 +1,6 @@
 package com.omanfinance.marketfeed.web;
 
-import com.omanfinance.marketfeed.web.dto.ContractPricePoint;
+import com.omanfinance.marketfeed.web.dto.SparklinePointMessage;
 import com.omanfinance.marketmetrics.api.MarketMetrics;
 import com.omanfinance.marketmetrics.api.dto.PricePoint;
 import jakarta.annotation.PreDestroy;
@@ -63,7 +63,7 @@ class SparklinePointPublisher {
 
   void publish(PricePoint point) {
     try {
-      messaging.convertAndSend(DESTINATION, ContractPricePoint.from(point));
+      messaging.convertAndSend(DESTINATION, SparklinePointMessage.from(point));
     } catch (MessagingException e) {
       log.warn("Could not publish PricePoint of symbol: {}", point.symbol(), e);
     }

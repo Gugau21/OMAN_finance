@@ -4,7 +4,7 @@ import com.omanfinance.marketmetrics.api.dto.PricePoint;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/** REST/STOMP sparkline point; omits symbol (parent or topic carries it). */
+/** REST sparkline point; omits symbol (the parent sparkline carries it). */
 public record ContractPricePoint(Instant timestamp, BigDecimal price) {
 
   public static ContractPricePoint from(PricePoint point) {
