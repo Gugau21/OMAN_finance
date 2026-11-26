@@ -1,6 +1,6 @@
 package com.omanfinance.marketfeed.web.dto;
 
-import com.omanfinance.candlebuffer.api.dto.PricePoint;
+import com.omanfinance.marketmetrics.api.dto.PricePoint;
 import java.math.BigDecimal;
 import java.time.Instant;
 

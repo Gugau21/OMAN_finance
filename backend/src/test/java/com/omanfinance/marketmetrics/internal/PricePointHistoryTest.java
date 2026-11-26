@@ -1,57 +1,35 @@
-package com.omanfinance.candlebuffer.internal;
+package com.omanfinance.marketmetrics.internal;
 
+import static com.omanfinance.marketmetrics.internal.MarketMetricsConstants.CANDLE_WINDOW;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.omanfinance.candlebuffer.api.CandleBuffer;
 import com.omanfinance.candlebuffer.api.dto.Candle;
-import com.omanfinance.candlebuffer.api.dto.PricePoint;
-import com.omanfinance.candlebuffer.api.dto.StockStat;
+import com.omanfinance.marketmetrics.api.dto.PricePoint;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class StockStatCalculatorTest {
+class PricePointHistoryTest {
 
-  private CandleHistory candleHistory;
-  private StockStatCalculator calculator;
+  private CandleBuffer candleBuffer;
+  private PricePointHistory history;
 
   @BeforeEach
   void setUp() {
-    candleHistory = mock(CandleHistory.class);
-    calculator = new StockStatCalculator(candleHistory);
-  }
-
-  @Test
-  void getStockStat_calculates_from_five_candles() {
-    when(candleHistory.getLastCandles("AAPL", 5)).thenReturn(fiveCandles());
-
-    StockStat stat = calculator.getStockStat("AAPL", 5);
-
-    // oldest open 100, latest close 110 → change 10, changePercent 10
-    // volumes 10+20+30+40+50 = 150
-    assertThat(stat.symbol()).isEqualTo("AAPL");
-    assertThat(stat.timestamp()).isEqualTo(Instant.parse("2026-10-29T16:04:00Z"));
-    assertThat(stat.price()).isEqualByComparingTo("110");
-    assertThat(stat.change()).isEqualByComparingTo("10");
-    assertThat(stat.changePercent()).isEqualByComparingTo("10");
-    assertThat(stat.volume()).isEqualTo(150L);
-  }
-
-  @Test
-  void getStockStat_returns_null_when_no_candles() {
-    when(candleHistory.getLastCandles("AAPL", 60)).thenReturn(List.of());
-
-    assertThat(calculator.getStockStat("AAPL", 60)).isNull();
+    candleBuffer = mock(CandleBuffer.class);
+    history = new PricePointHistory(candleBuffer);
   }
 
   @Test
   void getPricePoints_maps_five_candles_to_close_prices() {
-    when(candleHistory.getLastCandles("AAPL", 5)).thenReturn(fiveCandles());
+    when(candleBuffer.getLastCandles("AAPL", CANDLE_WINDOW)).thenReturn(fiveCandles());
 
-    List<PricePoint> points = calculator.getPricePoints("AAPL", 5);
+    List<PricePoint> points = history.getPricePoints("AAPL");
 
     assertThat(points).hasSize(5);
 
@@ -73,9 +51,9 @@ class StockStatCalculatorTest {
 
   @Test
   void getPricePoints_returns_null_when_no_candles() {
-    when(candleHistory.getLastCandles("AAPL", 60)).thenReturn(List.of());
+    when(candleBuffer.getLastCandles("AAPL", CANDLE_WINDOW)).thenReturn(List.of());
 
-    assertThat(calculator.getPricePoints("AAPL", 60)).isNull();
+    assertThat(history.getPricePoints("AAPL")).isNull();
   }
 
   private static List<Candle> fiveCandles() {
@@ -92,8 +70,8 @@ class StockStatCalculatorTest {
         "AAPL",
         Instant.parse(timestamp),
         new BigDecimal(open),
-        new BigDecimal(close), // high not important
-        new BigDecimal(open), // low not important
+        new BigDecimal(close),
+        new BigDecimal(open),
         new BigDecimal(close),
         volume);
   }

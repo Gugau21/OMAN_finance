@@ -9,11 +9,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.omanfinance.candlebuffer.api.CandleBuffer;
 import com.omanfinance.candlebuffer.api.dto.Candle;
-import com.omanfinance.candlebuffer.api.dto.PricePoint;
-import com.omanfinance.candlebuffer.api.dto.StockStat;
 import com.omanfinance.marketfeed.MarketFeedConstants;
 import com.omanfinance.marketingestion.api.MarketIngestion;
 import com.omanfinance.marketingestion.api.dto.Stock;
+import com.omanfinance.marketmetrics.api.MarketMetrics;
+import com.omanfinance.marketmetrics.api.dto.PricePoint;
+import com.omanfinance.marketmetrics.api.dto.StockStat;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ class StockDataControllerTest {
   @Autowired private MockMvc mvc;
 
   @MockitoBean private CandleBuffer candleBuffer;
+  @MockitoBean private MarketMetrics marketMetrics;
   @MockitoBean private MarketIngestion marketIngestion;
 
   @BeforeEach
@@ -47,10 +49,8 @@ class StockDataControllerTest {
   @Test
   void sparkline_returns_contract_shape_for_every_tracked_stock() throws Exception {
     when(candleBuffer.isReady()).thenReturn(true);
-    when(candleBuffer.getPricePoints(eq("MSFT"), eq(MarketFeedConstants.WINDOW_SIZE)))
-        .thenReturn(sixtyPricePoints());
-    when(candleBuffer.getPricePoints(eq("AAPL"), eq(MarketFeedConstants.WINDOW_SIZE)))
-        .thenReturn(sixtyPricePoints());
+    when(marketMetrics.getPricePoints("MSFT")).thenReturn(sixtyPricePoints());
+    when(marketMetrics.getPricePoints("AAPL")).thenReturn(sixtyPricePoints());
 
     mvc.perform(get("/api/stocks/sparkline"))
         .andExpect(status().isOk())
@@ -64,10 +64,8 @@ class StockDataControllerTest {
   @Test
   void stat_returns_contract_shape_for_every_tracked_stock() throws Exception {
     when(candleBuffer.isReady()).thenReturn(true);
-    when(candleBuffer.getStockStat(eq("MSFT"), eq(MarketFeedConstants.WINDOW_SIZE)))
-        .thenReturn(sampleStat("MSFT"));
-    when(candleBuffer.getStockStat(eq("AAPL"), eq(MarketFeedConstants.WINDOW_SIZE)))
-        .thenReturn(sampleStat("AAPL"));
+    when(marketMetrics.getStockStat("MSFT")).thenReturn(sampleStat("MSFT"));
+    when(marketMetrics.getStockStat("AAPL")).thenReturn(sampleStat("AAPL"));
 
     mvc.perform(get("/api/stocks/stat"))
         .andExpect(status().isOk())
@@ -80,8 +78,7 @@ class StockDataControllerTest {
   @Test
   void singleStat_returns_contract_shape_for_tracked_symbol() throws Exception {
     when(candleBuffer.isReady()).thenReturn(true);
-    when(candleBuffer.getStockStat(eq("AAPL"), eq(MarketFeedConstants.WINDOW_SIZE)))
-        .thenReturn(sampleStat("AAPL"));
+    when(marketMetrics.getStockStat("AAPL")).thenReturn(sampleStat("AAPL"));
 
     mvc.perform(get("/api/stocks/AAPL/stat"))
         .andExpect(status().isOk())

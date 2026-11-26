@@ -1,4 +1,4 @@
-package com.omanfinance.candlebuffer.api.dto;
+package com.omanfinance.marketmetrics.api.dto;
 
 import java.math.BigDecimal;
 import java.time.Instant;

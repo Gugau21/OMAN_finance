@@ -1,7 +1,7 @@
 package com.omanfinance.marketfeed.web;
 
-import com.omanfinance.candlebuffer.api.CandleBuffer;
-import com.omanfinance.candlebuffer.api.dto.StockStat;
+import com.omanfinance.marketmetrics.api.MarketMetrics;
+import com.omanfinance.marketmetrics.api.dto.StockStat;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,10 +15,9 @@ import reactor.core.Disposable;
 import reactor.core.Disposables;
 
 /**
- * Publishes every live stock stat from {@link
- * com.omanfinance.candlebuffer.api.CandleBuffer#streamStockStats()} to {@code /topic/stocks/stat}
- * and {@code /topic/stocks/{symbol}/stat}, with the same payload as one element of {@code GET
- * /api/stocks/stat} ({@code stomp_contract.yaml}).
+ * Publishes every live stock stat from {@link MarketMetrics#streamStockStats()} to {@code
+ * /topic/stocks/stat} and {@code /topic/stocks/{symbol}/stat}, with the same payload as one element
+ * of {@code GET /api/stocks/stat} ({@code stomp_contract.yaml}).
  *
  * <p>One message per stock per minute on each destination. Nothing is replayed to a client that
  * subscribes later; it loads stats from REST first.
@@ -30,26 +29,29 @@ class StockStatPublisher {
   private static final String SYMBOL_PREFIX = "/topic/stocks/";
   private static final String SYMBOL_SUFFIX = "/stat";
 
-  /** After {@link com.omanfinance.marketfeed.StreamStartupSubscriber} (order 4). */
-  private static final int START_AFTER_STREAM_STOCK_STAT_STARTED = 5;
+  /**
+   * After live metrics streams ({@link com.omanfinance.marketmetrics.internal.LiveStockStatStream}
+   * order 3).
+   */
+  private static final int START_AFTER_METRICS_STREAMS = 4;
 
   private static final Logger log = LoggerFactory.getLogger(StockStatPublisher.class);
 
-  private final CandleBuffer candleBuffer;
+  private final MarketMetrics marketMetrics;
   private final SimpMessageSendingOperations messaging;
 
   private Disposable subscription = Disposables.disposed();
 
-  public StockStatPublisher(CandleBuffer candleBuffer, SimpMessageSendingOperations messaging) {
-    this.candleBuffer = candleBuffer;
+  public StockStatPublisher(MarketMetrics marketMetrics, SimpMessageSendingOperations messaging) {
+    this.marketMetrics = marketMetrics;
     this.messaging = messaging;
   }
 
   @EventListener(ApplicationReadyEvent.class)
-  @Order(START_AFTER_STREAM_STOCK_STAT_STARTED)
+  @Order(START_AFTER_METRICS_STREAMS)
   void start() {
     subscription =
-        candleBuffer
+        marketMetrics
             .streamStockStats()
             .subscribe(
                 this::publish, e -> log.error("Stock stat stream failed, publishing stopped", e));

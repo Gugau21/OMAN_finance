@@ -9,9 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.omanfinance.candlebuffer.api.CandleBuffer;
-import com.omanfinance.candlebuffer.api.dto.PricePoint;
 import com.omanfinance.marketfeed.web.dto.SparklinePointMessage;
+import com.omanfinance.marketmetrics.api.MarketMetrics;
+import com.omanfinance.marketmetrics.api.dto.PricePoint;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,9 +35,9 @@ class SparklinePointPublisherTest {
 
   @BeforeEach
   void startPublisher() {
-    CandleBuffer candleBuffer = mock(CandleBuffer.class);
-    when(candleBuffer.streamPricePoints()).thenReturn(points.asFlux());
-    publisher = new SparklinePointPublisher(candleBuffer, messaging);
+    MarketMetrics marketMetrics = mock(MarketMetrics.class);
+    when(marketMetrics.streamPricePoints()).thenReturn(points.asFlux());
+    publisher = new SparklinePointPublisher(marketMetrics, messaging);
     publisher.start();
   }
 

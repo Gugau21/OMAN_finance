@@ -6,8 +6,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.omanfinance.candlebuffer.api.dto.Candle;
-import com.omanfinance.candlebuffer.api.dto.PricePoint;
-import com.omanfinance.candlebuffer.api.dto.StockStat;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -19,26 +17,16 @@ import reactor.test.StepVerifier;
 class CandleBufferServiceTest {
 
   private CandleHistory candleHistory;
-  private StockStatCalculator stockStatCalculator;
   private CandleBufferStartup candleBufferStartup;
   private LiveCandleStream liveCandleStream;
   private CandleBufferService service;
-  private LiveStockStatStream liveStockStatStream;
 
   @BeforeEach
   void setUp() {
     candleHistory = mock(CandleHistory.class);
-    stockStatCalculator = mock(StockStatCalculator.class);
     candleBufferStartup = mock(CandleBufferStartup.class);
     liveCandleStream = mock(LiveCandleStream.class);
-    liveStockStatStream = mock(LiveStockStatStream.class);
-    service =
-        new CandleBufferService(
-            candleHistory,
-            stockStatCalculator,
-            candleBufferStartup,
-            liveCandleStream,
-            liveStockStatStream);
+    service = new CandleBufferService(candleHistory, candleBufferStartup, liveCandleStream);
   }
 
   @Test
@@ -70,46 +58,6 @@ class CandleBufferServiceTest {
   }
 
   @Test
-  void getPricePoints_returns_what_calculator_returns() {
-    List<PricePoint> points =
-        List.of(
-            new PricePoint("AAPL", Instant.parse("2026-10-29T16:00:00Z"), new BigDecimal("101")));
-    when(stockStatCalculator.getPricePoints("AAPL", 60)).thenReturn(points);
-
-    assertThat(service.getPricePoints("AAPL", 60)).isSameAs(points);
-
-    verify(stockStatCalculator).getPricePoints("AAPL", 60);
-  }
-
-  @Test
-  void getPricePoints_returns_null_when_calculator_returns_null() {
-    when(stockStatCalculator.getPricePoints("AAPL", 60)).thenReturn(null);
-
-    assertThat(service.getPricePoints("AAPL", 60)).isNull();
-
-    verify(stockStatCalculator).getPricePoints("AAPL", 60);
-  }
-
-  @Test
-  void getStockStat_returns_what_calculator_returns() {
-    StockStat stat = stockStat();
-    when(stockStatCalculator.getStockStat("AAPL", 60)).thenReturn(stat);
-
-    assertThat(service.getStockStat("AAPL", 60)).isSameAs(stat);
-
-    verify(stockStatCalculator).getStockStat("AAPL", 60);
-  }
-
-  @Test
-  void getStockStat_returns_null_when_calculator_returns_null() {
-    when(stockStatCalculator.getStockStat("AAPL", 60)).thenReturn(null);
-
-    assertThat(service.getStockStat("AAPL", 60)).isNull();
-
-    verify(stockStatCalculator).getStockStat("AAPL", 60);
-  }
-
-  @Test
   void streamCandles_receives_candles() {
     Candle expected = candle();
     when(liveCandleStream.streamCandles()).thenReturn(Flux.just(expected));
@@ -117,37 +65,6 @@ class CandleBufferServiceTest {
     StepVerifier.create(service.streamCandles()).expectNext(expected).thenCancel().verify();
 
     verify(liveCandleStream).streamCandles();
-  }
-
-  @Test
-  void streamStockStat_receives_StockStats() {
-    StockStat expected = stockStat();
-    when(liveStockStatStream.streamStockStat()).thenReturn(Flux.just(expected));
-
-    StepVerifier.create(service.streamStockStats()).expectNext(expected).thenCancel().verify();
-
-    verify(liveStockStatStream).streamStockStat();
-  }
-
-  @Test
-  void streamPricePoints_receives_pricePoints() {
-    PricePoint expected =
-        new PricePoint("AAPL", Instant.parse("2026-10-29T16:00:00Z"), new BigDecimal("101"));
-    when(liveStockStatStream.streamPricePoint()).thenReturn(Flux.just(expected));
-
-    StepVerifier.create(service.streamPricePoints()).expectNext(expected).thenCancel().verify();
-
-    verify(liveStockStatStream).streamPricePoint();
-  }
-
-  private static StockStat stockStat() {
-    return new StockStat(
-        "AAPL",
-        Instant.parse("2026-10-29T16:04:00Z"),
-        new BigDecimal("110"),
-        new BigDecimal("10"),
-        new BigDecimal("10"),
-        150L);
   }
 
   private static Candle candle() {

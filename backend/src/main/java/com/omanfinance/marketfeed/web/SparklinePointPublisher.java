@@ -1,8 +1,8 @@
 package com.omanfinance.marketfeed.web;
 
-import com.omanfinance.candlebuffer.api.CandleBuffer;
-import com.omanfinance.candlebuffer.api.dto.PricePoint;
 import com.omanfinance.marketfeed.web.dto.SparklinePointMessage;
+import com.omanfinance.marketmetrics.api.MarketMetrics;
+import com.omanfinance.marketmetrics.api.dto.PricePoint;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,9 +16,8 @@ import reactor.core.Disposable;
 import reactor.core.Disposables;
 
 /**
- * Publishes every live sparkline point from {@link
- * com.omanfinance.candlebuffer.api.CandleBuffer#streamPricePoints()} to {@code
- * /topic/stocks/{symbol}/candles}.
+ * Publishes every live sparkline point from {@link MarketMetrics#streamPricePoints()} to {@code
+ * /topic/stocks/sparkline}.
  *
  * <p>One message per stock per minute. Nothing is replayed to a client that subscribes later; it
  * loads candles from REST first.
@@ -27,27 +26,30 @@ import reactor.core.Disposables;
 class SparklinePointPublisher {
   private final String DESTINATION = "/topic/stocks/sparkline";
 
-  /** After {@link com.omanfinance.marketfeed.StreamStartupSubscriber} (order 4). */
-  private static final int START_AFTER_STREAM_STOCK_STAT_STARTED = 5;
+  /**
+   * After live metrics streams ({@link com.omanfinance.marketmetrics.internal.PricePointStream}
+   * order 3).
+   */
+  private static final int START_AFTER_METRICS_STREAMS = 4;
 
-  private static final Logger log = LoggerFactory.getLogger(CandlePublisher.class);
+  private static final Logger log = LoggerFactory.getLogger(SparklinePointPublisher.class);
 
-  private final CandleBuffer candleBuffer;
+  private final MarketMetrics marketMetrics;
   private final SimpMessageSendingOperations messaging;
 
   private Disposable subscription = Disposables.disposed();
 
   public SparklinePointPublisher(
-      CandleBuffer candleBuffer, SimpMessageSendingOperations messaging) {
-    this.candleBuffer = candleBuffer;
+      MarketMetrics marketMetrics, SimpMessageSendingOperations messaging) {
+    this.marketMetrics = marketMetrics;
     this.messaging = messaging;
   }
 
   @EventListener(ApplicationReadyEvent.class)
-  @Order(START_AFTER_STREAM_STOCK_STAT_STARTED)
+  @Order(START_AFTER_METRICS_STREAMS)
   void start() {
     subscription =
-        candleBuffer
+        marketMetrics
             .streamPricePoints()
             .subscribe(
                 this::publish,

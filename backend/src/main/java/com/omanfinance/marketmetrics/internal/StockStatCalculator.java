@@ -1,8 +1,10 @@
-package com.omanfinance.candlebuffer.internal;
+package com.omanfinance.marketmetrics.internal;
 
+import static com.omanfinance.marketmetrics.internal.MarketMetricsConstants.CANDLE_WINDOW;
+
+import com.omanfinance.candlebuffer.api.CandleBuffer;
 import com.omanfinance.candlebuffer.api.dto.Candle;
-import com.omanfinance.candlebuffer.api.dto.PricePoint;
-import com.omanfinance.candlebuffer.api.dto.StockStat;
+import com.omanfinance.marketmetrics.api.dto.StockStat;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -14,15 +16,15 @@ class StockStatCalculator {
   private static final int CHANGE_PERCENT_SCALE = 10;
   private static final int PERCENT = 100;
 
-  private CandleHistory candleHistory;
+  private final CandleBuffer candleBuffer;
 
-  public StockStatCalculator(CandleHistory candleHistory) {
-    this.candleHistory = candleHistory;
+  public StockStatCalculator(CandleBuffer candleBuffer) {
+    this.candleBuffer = candleBuffer;
   }
 
   /** Returns {@code null} when there is no data (e.g. backfill failed for this symbol). */
-  public StockStat getStockStat(String symbol, int windowSize) {
-    List<Candle> candles = candleHistory.getLastCandles(symbol, windowSize);
+  public StockStat getStockStat(String symbol) {
+    List<Candle> candles = candleBuffer.getLastCandles(symbol, CANDLE_WINDOW);
     if (candles.isEmpty()) {
       return null;
     }
@@ -44,17 +46,5 @@ class StockStatCalculator {
     long volume = candles.stream().mapToLong(Candle::volume).sum();
 
     return new StockStat(symbol, timestamp, price, change, changePercent, volume);
-  }
-
-  /** Returns {@code null} when there is no data (e.g. backfill failed for this symbol). */
-  public List<PricePoint> getPricePoints(String symbol, int numberOfPricePoints) {
-    List<Candle> candles = candleHistory.getLastCandles(symbol, numberOfPricePoints);
-    if (candles.isEmpty()) {
-      return null;
-    }
-
-    List<PricePoint> pricePoints = candles.stream().map(PricePoint::fromCandle).toList();
-
-    return pricePoints;
   }
 }
