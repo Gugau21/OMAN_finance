@@ -9,8 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.omanfinance.candlebuffer.api.CandleBuffer;
-import com.omanfinance.candlebuffer.api.dto.StockStat;
+import com.omanfinance.marketmetrics.api.MarketMetrics;
+import com.omanfinance.marketmetrics.api.dto.StockStat;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,9 +34,9 @@ class StockStatPublisherTest {
 
   @BeforeEach
   void startPublisher() {
-    CandleBuffer candleBuffer = mock(CandleBuffer.class);
-    when(candleBuffer.streamStockStats()).thenReturn(stats.asFlux());
-    publisher = new StockStatPublisher(candleBuffer, messaging);
+    MarketMetrics marketMetrics = mock(MarketMetrics.class);
+    when(marketMetrics.streamStockStats()).thenReturn(stats.asFlux());
+    publisher = new StockStatPublisher(marketMetrics, messaging);
     publisher.start();
   }
 

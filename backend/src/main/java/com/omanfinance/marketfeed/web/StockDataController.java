@@ -1,8 +1,6 @@
 package com.omanfinance.marketfeed.web;
 
 import com.omanfinance.candlebuffer.api.CandleBuffer;
-import com.omanfinance.candlebuffer.api.dto.PricePoint;
-import com.omanfinance.candlebuffer.api.dto.StockStat;
 import com.omanfinance.marketfeed.MarketDataNotReadyException;
 import com.omanfinance.marketfeed.MarketFeedConstants;
 import com.omanfinance.marketfeed.StockNotFoundException;
@@ -12,6 +10,9 @@ import com.omanfinance.marketfeed.web.dto.Sparkline;
 import com.omanfinance.marketfeed.web.dto.StockCandles;
 import com.omanfinance.marketingestion.api.MarketIngestion;
 import com.omanfinance.marketingestion.api.dto.Stock;
+import com.omanfinance.marketmetrics.api.MarketMetrics;
+import com.omanfinance.marketmetrics.api.dto.PricePoint;
+import com.omanfinance.marketmetrics.api.dto.StockStat;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,10 +26,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class StockDataController {
 
   private final CandleBuffer candleBuffer;
+  private final MarketMetrics marketMetrics;
   private final MarketIngestion marketIngestion;
 
-  public StockDataController(CandleBuffer candleBuffer, MarketIngestion marketIngestion) {
+  public StockDataController(
+      CandleBuffer candleBuffer, MarketMetrics marketMetrics, MarketIngestion marketIngestion) {
     this.candleBuffer = candleBuffer;
+    this.marketMetrics = marketMetrics;
     this.marketIngestion = marketIngestion;
   }
 
@@ -37,8 +41,7 @@ public class StockDataController {
     requireReady();
     List<Sparkline> sparklines = new ArrayList<>();
     for (Stock stock : marketIngestion.getTrackedStocks()) {
-      List<PricePoint> points =
-          candleBuffer.getPricePoints(stock.symbol(), MarketFeedConstants.WINDOW_SIZE);
+      List<PricePoint> points = marketMetrics.getPricePoints(stock.symbol());
       requireDataForSymbol(stock.symbol(), points);
       List<ContractPricePoint> contractPoints =
           points.stream().map(ContractPricePoint::from).toList();
@@ -52,7 +55,7 @@ public class StockDataController {
     requireReady();
     List<StockStat> stats = new ArrayList<>();
     for (Stock stock : marketIngestion.getTrackedStocks()) {
-      StockStat stat = candleBuffer.getStockStat(stock.symbol(), MarketFeedConstants.WINDOW_SIZE);
+      StockStat stat = marketMetrics.getStockStat(stock.symbol());
       requireDataForSymbol(stock.symbol(), stat);
       stats.add(stat);
     }
@@ -63,7 +66,7 @@ public class StockDataController {
   public StockStat getStockStat(@PathVariable String symbol) {
     requireReady();
     requireTracked(symbol);
-    StockStat stat = candleBuffer.getStockStat(symbol, MarketFeedConstants.WINDOW_SIZE);
+    StockStat stat = marketMetrics.getStockStat(symbol);
     requireDataForSymbol(symbol, stat);
     return stat;
   }
