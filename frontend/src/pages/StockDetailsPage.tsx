@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getStockPageData } from '../data/stockPageData';
-import type { StockPageView } from '../features/stocks/model/stock';
+import type { StockPageView } from '../data/stockPageMapper';
 import {
   LineChart,
   Line,

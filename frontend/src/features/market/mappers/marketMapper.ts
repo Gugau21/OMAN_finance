@@ -1,7 +1,7 @@
-import type { MarketStatusDto } from '../api/marketStatusDto';
+import type { GetMarketStatusResponse } from '../api/marketStatusDto';
 import type { MarketStatus } from '../model/market';
 
-export function toMarketStatus(dto: MarketStatusDto): MarketStatus {
+export function toMarketStatus(dto: GetMarketStatusResponse): MarketStatus {
   return {
     timestamp: new Date(dto.timestamp),
     isOpen: dto.isOpen,

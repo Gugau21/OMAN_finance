@@ -4,12 +4,12 @@ import {
   type DataOptions,
 } from '../../../data/dataSource';
 import { getJson } from '../../../lib/http/client';
-import { parseMarketStatusDto, type MarketStatusDto } from './marketStatusDto';
+import { parseGetMarketStatus, type GetMarketStatusResponse } from './marketStatusDto';
 import { getMockMarketStatus } from '../mocks/marketStatusMock';
 
 export async function getMarketStatus(
   sourceOrOptions: DataSource | DataOptions = {},
-): Promise<MarketStatusDto | null> {
+): Promise<GetMarketStatusResponse | null> {
   const options =
     typeof sourceOrOptions === 'string' ? { source: sourceOrOptions } : sourceOrOptions;
   const source = options.source ?? getConfiguredDataSource('marketStatus');
@@ -22,5 +22,5 @@ export async function getMarketStatus(
     signal: options.signal,
     resourceName: 'market status',
   });
-  return parseMarketStatusDto(value);
+  return parseGetMarketStatus(value);
 }

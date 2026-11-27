@@ -1,11 +1,15 @@
 import type { StockListItem, StockStat } from '../model/stock';
-import type { StockDto, SparklineDto, StockStatDto } from '../api/StockApiDto';
+import type {
+  ListSparklinesResponse,
+  ListStockStatsResponse,
+  ListStocksResponse,
+} from '../api/StockApiDto';
 import type { SparklinePointMessageDto, StockStatMessageDto } from '../realtime/stockMessageParser';
 
 export function toStockListItem(
-  stocks: StockDto[],
-  stats: StockStatDto[],
-  sparklines: SparklineDto[],
+  stocks: ListStocksResponse,
+  stats: ListStockStatsResponse,
+  sparklines: ListSparklinesResponse,
 ): StockListItem[] {
   const statsBySymbol = new Map(stats.map((stat) => [stat.symbol, stat]));
   const sparklinesBySymbol = new Map(sparklines.map((sparkline) => [sparkline.symbol, sparkline]));

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getConfiguredDataSource } from '../../../data/dataSource';
 import { getMarketStatus } from '../api/marketApi';
-import { parseMarketStatusDto } from '../api/marketStatusDto';
+import { parseGetMarketStatus } from '../api/marketStatusDto';
 import { toMarketStatus } from '../mappers/marketMapper';
 import type { MarketStatus } from '../model/market';
 import {
@@ -44,7 +44,7 @@ export function useMarketStatus() {
 
     const unsubscribe = subscribeToTopic(stompTopics.marketStatus, (message) => {
       try {
-        const updateDto = parseMarketStatusDto(parseStompJson(message));
+        const updateDto = parseGetMarketStatus(parseStompJson(message));
         const update = toMarketStatus(updateDto);
         latestMessageTimestamp.current = update.timestamp;
         setRealtimeError(null);

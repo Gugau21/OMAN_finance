@@ -5,18 +5,18 @@ import {
 } from '../../../data/dataSource';
 import { getJson } from '../../../lib/http/client';
 import {
-  parseSparklinesDto,
-  parseStockStatsDto,
-  parseStocksDto,
-  type SparklineDto,
-  type StockDto,
-  type StockStatDto,
+  parseListSparklines,
+  parseListStockStats,
+  parseListStocks,
+  type ListSparklinesResponse,
+  type ListStockStatsResponse,
+  type ListStocksResponse,
 } from './StockApiDto';
 import { getMockSparklines, getMockStockStats, getMockStocks } from '../mocks/stockMocks';
 
 export async function getStocks(
   sourceOrOptions: DataSource | DataOptions = {},
-): Promise<StockDto[] | null> {
+): Promise<ListStocksResponse | null> {
   const options =
     typeof sourceOrOptions === 'string' ? { source: sourceOrOptions } : sourceOrOptions;
   const source = options.source ?? getConfiguredDataSource('stocks');
@@ -29,12 +29,12 @@ export async function getStocks(
     signal: options.signal,
     resourceName: 'stocks',
   });
-  return parseStocksDto(value);
+  return parseListStocks(value);
 }
 
 export async function getSparklines(
   sourceOrOptions: DataSource | DataOptions = {},
-): Promise<SparklineDto[] | null> {
+): Promise<ListSparklinesResponse | null> {
   const options =
     typeof sourceOrOptions === 'string' ? { source: sourceOrOptions } : sourceOrOptions;
   const source = options.source ?? getConfiguredDataSource('sparklines');
@@ -47,12 +47,12 @@ export async function getSparklines(
     signal: options.signal,
     resourceName: 'sparklines',
   });
-  return parseSparklinesDto(value);
+  return parseListSparklines(value);
 }
 
 export async function getStockStats(
   sourceOrOptions: DataSource | DataOptions = {},
-): Promise<StockStatDto[] | null> {
+): Promise<ListStockStatsResponse | null> {
   const options =
     typeof sourceOrOptions === 'string' ? { source: sourceOrOptions } : sourceOrOptions;
   const source = options.source ?? getConfiguredDataSource('stockStats');
@@ -65,5 +65,5 @@ export async function getStockStats(
     signal: options.signal,
     resourceName: 'sparklines',
   });
-  return parseStockStatsDto(value);
+  return parseListStockStats(value);
 }

@@ -3,7 +3,7 @@ import type { StockPageView } from './stockPageMapper';
 import { getConfiguredDataSource } from './dataSource';
 import { HttpError } from '../lib/http/errors';
 import { getJson } from '../lib/http/client';
-import { getMockStockCandles, getMockStockStat } from '../features/stocks/mocks/stockMocks';
+import { getMockStockCandles, getMockStockStat } from '../features/stock_detail/mocks/stockDetailMocks';
 import { parseStockCandles, parseStockStat } from './stockPageParsers';
 
 export async function getStockPageData(

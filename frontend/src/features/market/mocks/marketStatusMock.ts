@@ -1,7 +1,7 @@
 import type { MockScenario } from '../../../data/dataSource';
-import type { MarketStatusDto } from '../api/marketStatusDto';
+import type { GetMarketStatusResponse } from '../api/marketStatusDto';
 
-const mockMarketStatus: MarketStatusDto = {
+const mockMarketStatus: GetMarketStatusResponse = {
   timestamp: '2026-10-29T13:08:00-04:00',
   isOpen: true,
   nextOpen: '2026-10-30T09:30:00-04:00',
@@ -11,7 +11,7 @@ const mockMarketStatus: MarketStatusDto = {
 export async function getMockMarketStatus(
   scenario: MockScenario = getConfiguredScenario(),
   signal?: AbortSignal,
-): Promise<MarketStatusDto | null> {
+): Promise<GetMarketStatusResponse | null> {
   if (scenario === 'empty') {
     return null;
   }
