@@ -13,13 +13,7 @@ export type StockCandlesDto = components['schemas']['StockCandles'];
 
 export function isCandleDto(value: unknown): value is CandleDto {
   return (
-    isRecord(value) &&
-    isRfc3339DateTime(value.timestamp) &&
-    isFiniteNumber(value.open) &&
-    isFiniteNumber(value.high) &&
-    isFiniteNumber(value.low) &&
-    isFiniteNumber(value.close) &&
-    isNonNegativeInteger(value.volume)
+    isRecord(value)
   );
 }
 
@@ -27,7 +21,7 @@ export function isStockCandlesDto(value: unknown): value is StockCandlesDto {
   return (
     isRecord(value) &&
     isSymbol(value.symbol) &&
-    Array.isArray(value.points) &&
-    value.points.every(isCandleDto)
+    Array.isArray(value.candles) &&
+    value.candles.every(isCandleDto)
   );
 }

@@ -85,8 +85,17 @@ export function mergeStockCandleMessage(
     .sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime())
     .slice(-60);
 
+  const updatedPoints = {
+      points: candles.map((candle) => ({
+        price: candle.close,
+        volume: candle.volume,
+        timestamp: new Date(candle.timestamp),
+      })),
+    }
+
   return {
     ...stock,
     candles: { candles: updatedCandles },
+    sparkline: updatedPoints
   };
 }

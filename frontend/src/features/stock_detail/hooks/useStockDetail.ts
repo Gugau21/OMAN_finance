@@ -57,11 +57,13 @@ export function useStockDetail(symbol: string) {
       }
 
       let detail = toStockDetail(statResponse, candlesResponse);
-      if (latestStatMessage.current) {
-        detail = mergeStockStatMessage(detail, latestStatMessage.current.data) ?? detail;
+      const statEntry = latestStatMessage.current;
+      if (statEntry && statEntry.symbol === symbol) {
+        detail = mergeStockStatMessage(detail, statEntry.data) ?? detail;
       }
-      if (latestCandleMessage.current) {
-        detail = mergeStockCandleMessage(detail, latestCandleMessage.current.data) ?? detail;
+      const candleEntry = latestCandleMessage.current;
+      if (candleEntry && candleEntry.symbol === symbol) {
+        detail = mergeStockCandleMessage(detail, candleEntry.data) ?? detail;
       }
 
       return detail;
@@ -157,7 +159,8 @@ export function useStockDetail(symbol: string) {
       unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
       unsubscribeFromConnect();
     };
-  }, [queryClient, queryKey, symbol]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryClient, symbol]);
 
   return {
     ...query,

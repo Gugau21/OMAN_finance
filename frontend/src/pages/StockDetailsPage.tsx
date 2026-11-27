@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
-import { getStockPageData } from '../data/stockPageData';
-import type { StockPageView } from '../data/stockPageMapper';
+import { useMemo, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -13,6 +11,8 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useStockDetail } from '../features/stock_detail/hooks/useStockDetail';
+import type { StockDetail } from '../features/stock_detail/model/stock_detail';
 
 type CandlestickShapeProps = {
   x?: number;
@@ -79,77 +79,53 @@ const CandlestickShape = (props: CandlestickShapeProps) => {
 export function StockDetailsPage() {
   const navigate = useNavigate();
   const { symbol } = useParams<{ symbol: string }>();
-  const [stockDetails, setStockDetails] = useState<StockPageView | null>(null);
-
-  const [lineChartData, setLineChartData] = useState<Array<{ timestamp: string; price: number }>>(
-    [],
-  );
-  const [candleChartData, setCandleChartData] = useState<FormattedCandle[]>([]);
+  const activeSymbol = symbol ?? '';
+  const {
+    data: stockDetails,
+    isLoading,
+    error,
+  } = useStockDetail(activeSymbol);
 
   const [chartType, setChartType] = useState<'line' | 'candles'>('line');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!symbol) {
-      return;
+  const { lineChartData, candleChartData } = useMemo(() => {
+    if (!stockDetails) {
+      return {
+        lineChartData: [] as Array<{ timestamp: string; price: number }>,
+        candleChartData: [] as FormattedCandle[],
+      };
     }
 
-    const routeSymbol = symbol;
-    const controller = new AbortController();
+const points = Array.isArray(stockDetails.sparkline)
+  ? stockDetails.sparkline
+  : stockDetails.sparkline.points; // or .items / .series / .values
 
-    async function loadStockDetails() {
-      try {
-        setIsLoading(true);
-        setError(null);
+const lineData = points.map((pt) => ({
+  timestamp: new Date(pt.timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  }),
+  price: pt.price,
+}));
 
-        const data = await getStockPageData(routeSymbol, controller.signal);
+    const candleData = stockDetails.candles.candles.map((pt) => {
+      const isGrowing = pt.close >= pt.open;
+      return {
+        timestamp: pt.timestamp.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        wick: [pt.low, pt.high],
+        open: pt.open,
+        close: pt.close,
+        high: pt.high,
+        low: pt.low,
+        color: isGrowing ? '#16a34a' : '#ef4444',
+      };
+    });
 
-        if (data) {
-          setStockDetails(data);
-
-          const lineData = data.sparkline.map((pt) => ({
-            timestamp: pt.timestamp.toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            price: pt.price,
-          }));
-          setLineChartData(lineData);
-
-          const candleData = data.candles.candles.map((pt) => {
-            const isGrowing = pt.close >= pt.open;
-            return {
-              timestamp: pt.timestamp.toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-              wick: [pt.low, pt.high],
-              open: pt.open,
-              close: pt.close,
-              high: pt.high,
-              low: pt.low,
-              color: isGrowing ? '#16a34a' : '#ef4444',
-            };
-          });
-          setCandleChartData(candleData);
-        } else {
-          setError(`Could not find data for ${symbol}.`);
-        }
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          setError('Failed to load stock details. Please try again.');
-        } else if (!(err instanceof Error)) {
-          setError('An unexpected error occurred.');
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadStockDetails();
-    return () => controller.abort();
-  }, [symbol]);
+    return { lineChartData: lineData, candleChartData: candleData };
+  }, [stockDetails]);
 
   if (isLoading) {
     return (
@@ -162,7 +138,14 @@ export function StockDetailsPage() {
     );
   }
 
-  if (error || !stockDetails) {
+  const errorMessage =
+    error instanceof Error
+      ? error.message || 'Failed to load stock details. Please try again.'
+      : error
+        ? 'An unexpected error occurred.'
+        : null;
+
+  if (errorMessage || !stockDetails) {
     return (
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 bg-white min-h-screen">
         <button
@@ -172,13 +155,14 @@ export function StockDetailsPage() {
           &larr; Back to Markets
         </button>
         <div className="p-3 bg-red-50 text-red-600 rounded-lg border border-red-100 text-[10px]">
-          {error || 'Stock not found'}
+          {errorMessage || (symbol ? `Could not find data for ${symbol}.` : 'Stock not found')}
         </div>
       </div>
     );
   }
 
-  const isPositive = stockDetails.stat.change >= 0;
+  const detail: StockDetail = stockDetails;
+  const isPositive = detail.stat.change >= 0;
   const colorClass = isPositive ? 'text-green-600' : 'text-red-500';
   const strokeColor = isPositive ? '#16a34a' : '#ef4444';
 
@@ -200,16 +184,16 @@ export function StockDetailsPage() {
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <span className="text-lg font-bold text-gray-900">
-            ${stockDetails.stat.price.toFixed(2)}
+            ${detail.stat.price.toFixed(2)}
           </span>
           <div className={`flex flex-row gap-1 text-[10px] font-bold ${colorClass}`}>
             <span>
               {isPositive ? '+' : ''}
-              {stockDetails.stat.change.toFixed(2)}
+              {detail.stat.change.toFixed(2)}
             </span>
             <span>
               ({isPositive ? '+' : ''}
-              {stockDetails.stat.changePercent.toFixed(2)}%)
+              {detail.stat.changePercent.toFixed(2)}%)
             </span>
           </div>
         </div>
